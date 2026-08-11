@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+.env
+data/dataset/
+data/runs/
+*.lock

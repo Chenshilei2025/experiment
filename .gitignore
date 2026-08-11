@@ -1,0 +1,22 @@
+# 忽略检查点和模型权重
+checkpoints/
+*.pth
+*.pt
+*.h5
+*.ckpt
+
+# 忽略 Docker 的环境变量/密码文件 (非常重要！)
+.env
+lab1_tempadmin_id_rsa
+
+# 忽略挂载的数据集或日志
+eil/data/
+logs/
+wandb/
+artifacts/
+data_pipeline/data/external_benchmark/
+
+# 忽略 Python 缓存
+__pycache__/
+*.pyc
+.pytest_cache/
