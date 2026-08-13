@@ -10,7 +10,6 @@ checkpoints/
 lab1_tempadmin_id_rsa
 
 # 忽略挂载的数据集或日志
-eil/data/
 logs/
 wandb/
 artifacts/
