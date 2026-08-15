@@ -15,6 +15,7 @@ wandb/
 artifacts/
 data_pipeline/data/external_benchmark/
 claude/
+codex/
 
 # 忽略 Python 缓存
 __pycache__/
