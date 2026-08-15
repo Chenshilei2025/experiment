@@ -20,10 +20,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from anthropic import Anthropic
-
-
-
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "data"
 PROMPT_PATH = DATA / "prompt.md"
@@ -1196,7 +1192,7 @@ def response_text(message: Any) -> str:
     return "".join(block.text for block in message.content if getattr(block, "type", "") == "text")
 
 
-def call_claude(client: Anthropic, model: str, prompt: str, max_tokens: int, temperature: float) -> str:
+def call_claude(client: Any, model: str, prompt: str, max_tokens: int, temperature: float) -> str:
     message = client.messages.create(
         model=model,
         max_tokens=max_tokens,
@@ -1225,7 +1221,7 @@ def completed_ids(path: Path) -> set[str]:
     return ids
 
 
-def generate_one(client: Anthropic, block: PromptBlock, ordinal: int, args: argparse.Namespace) -> dict[str, Any]:
+def generate_one(client: Any, block: PromptBlock, ordinal: int, args: argparse.Namespace) -> dict[str, Any]:
     """Make one complete-model call for one record; retry the entire record if invalid."""
     inputs = build_inputs(block, ordinal, args.seed)
     errors = []

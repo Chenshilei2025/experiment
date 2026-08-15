@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "experiment": "training_order",
+  "context": {"order": "eil-miu"},
+  "checkpoint_template": "training-order_{run_name}_{order}_seed{seed}",
+  "base_model": "qwen3-4b",
+  "seed": 1234,
+  "evaluation": {
+    "baseline": true,
+    "after_each_stage": true,
+    "mechanisms": ["miu", "eil"]
+  },
+  "stages": [
+    {"mechanism": "eil", "rollouts": 840},
+    {"mechanism": "miu", "rollouts": 660}
+  ]
+}

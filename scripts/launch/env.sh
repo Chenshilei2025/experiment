@@ -3,34 +3,23 @@
 set -euo pipefail
 
 TRAINING_ENV_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
-# Keep explicit launcher overrides after loading .env.  This is used for
-# bounded smoke runs while leaving the persisted production defaults intact.
-OVERRIDE_NAMES=(
-  LOYAL_SHARED_CHECKPOINT_NAME
-  LOYAL_MIU_NUM_ROLLOUT LOYAL_EIL_NUM_ROLLOUT
-  LOYAL_MIU_ROLLOUT_BATCH_SIZE LOYAL_EIL_ROLLOUT_BATCH_SIZE
-  LOYAL_MIU_SAMPLES_PER_PROMPT LOYAL_EIL_SAMPLES_PER_PROMPT
-  LOYAL_MIU_GLOBAL_BATCH_SIZE LOYAL_EIL_GLOBAL_BATCH_SIZE
-  LOYAL_MIU_LEARNING_RATE LOYAL_MIU_KL_LOSS_COEF LOYAL_MIU_ENTROPY_COEF
-  LOYAL_MIU_CLIP_GRAD LOYAL_MIU_EPS_CLIP LOYAL_MIU_EPS_CLIP_HIGH
-  LOYAL_MIU_MAX_RESPONSE_LEN LOYAL_MIU_MAX_TOKENS_PER_GPU
-  LOYAL_MIU_SAVE_INTERVAL LOYAL_EIL_SAVE_INTERVAL
-  LOYAL_MIU_SAVE_RETAIN_INTERVAL LOYAL_EIL_SAVE_RETAIN_INTERVAL
-  LOYAL_MIU_DISABLE_EVAL LOYAL_EIL_EVAL_INTERVAL
-  LOYAL_USE_WANDB LOYAL_WANDB_PROJECT LOYAL_WANDB_GROUP LOYAL_WANDB_MODE
-  LOYAL_EIL_MAX_RESPONSE_LEN LOYAL_EIL_MAX_TOKENS_PER_GPU
-  LOYAL_EIL_SGLANG_MEM_FRACTION_STATIC LOYAL_EIL_RM_MAX_CONCURRENT LOYAL_EIL_GROUP_RM_MAX_CONCURRENT
-  LOYAL_MIU_GPU_DEVICES LOYAL_MIU_TRAIN_GPU_COUNT
-  LOYAL_MIU_ROLLOUT_GPU_COUNT LOYAL_MIU_RAY_NUM_GPUS
-  LOYAL_EIL_TRAIN_GPU_DEVICES LOYAL_EIL_TRAIN_GPU_COUNT
-  LOYAL_EIL_ROLLOUT_GPU_COUNT LOYAL_EIL_RAY_NUM_GPUS
-)
+# Keep every explicit LOYAL_* override after loading .env.  Experiments are
+# declarative configs, so a new hyperparameter must not require editing a
+# second, error-prone allowlist in both the host and container launchers.
 declare -A TRAINING_ENV_OVERRIDES=()
-for name in "${OVERRIDE_NAMES[@]}"; do
+while IFS= read -r name; do
+  [[ "${name}" =~ ^LOYAL_[A-Z0-9_]+$ ]] || continue
+  # Service identity and credentials are intentionally read only from .env.
+  # Versioned experiment configs may tune training, not silently replace an
+  # evaluator or endpoint.
+  [[ "${name}" =~ (_API_KEY|_API_KEYS|_BASE_URL)$ ]] && continue
+  case "${name}" in
+    LOYAL_MIU_JUDGE_MODEL|LOYAL_EIL_JUDGE_MODEL|LOYAL_EIL_ADVERSARY_MODEL) continue ;;
+  esac
   if [[ -v "${name}" ]]; then
     TRAINING_ENV_OVERRIDES["${name}"]="${!name}"
   fi
-done
+done < <(compgen -v)
 if [[ -f "${TRAINING_ENV_ROOT}/.env" ]]; then
   set -a
   # shellcheck disable=SC1091
@@ -40,15 +29,6 @@ fi
 for name in "${!TRAINING_ENV_OVERRIDES[@]}"; do
   export "${name}=${TRAINING_ENV_OVERRIDES[${name}]}"
 done
-
-# Docker mounts host model storage at /models. Preserve these container paths
-# after loading the host-oriented .env file.
-if [[ -n "${LOYAL_CONTAINER_QWEN3_4B_HF_CHECKPOINT:-}" ]]; then
-  export LOYAL_QWEN3_4B_HF_CHECKPOINT="${LOYAL_CONTAINER_QWEN3_4B_HF_CHECKPOINT}"
-fi
-if [[ -n "${LOYAL_CONTAINER_QWEN3_4B_REF_LOAD:-}" ]]; then
-  export LOYAL_QWEN3_4B_REF_LOAD="${LOYAL_CONTAINER_QWEN3_4B_REF_LOAD}"
-fi
 
 # Role-specific judge models fall back to the shared endpoint and credential.
 export LOYAL_MIU_JUDGE_BASE_URL="${LOYAL_MIU_JUDGE_BASE_URL:-${LOYAL_JUDGE_BASE_URL:-}}"
@@ -66,24 +46,27 @@ export LOYAL_MIU_FAITHFULNESS_JUDGE_MODEL="${LOYAL_MIU_FAITHFULNESS_JUDGE_MODEL:
 export LOYAL_EIL_ADVERSARY_BASE_URL="${LOYAL_EIL_ADVERSARY_BASE_URL:-${LOYAL_ADVERSARY_BASE_URL:-}}"
 export LOYAL_EIL_ADVERSARY_MODEL="${LOYAL_EIL_ADVERSARY_MODEL:-${LOYAL_ADVERSARY_MODEL:-qwen3.5-35b-a3b}}"
 export LOYAL_EIL_ADVERSARY_API_KEY="${LOYAL_EIL_ADVERSARY_API_KEY:-${LOYAL_ADVERSARY_API_KEY:-}}"
+# The Llama checkpoint is installed in the shared model store rather than the
+# project-specific one used by Qwen and GLM.  Launchers select this mount only
+# when LOYAL_BASE_MODEL=llama3.1-8b-instruct.
+export LOYAL_LLAMA3_1_8B_MODEL_ROOT="${LOYAL_LLAMA3_1_8B_MODEL_ROOT:-/ssd/models}"
 
-export LOYAL_MIU_TRAIN_RECORDS="${LOYAL_MIU_TRAIN_RECORDS:-${TRAINING_ENV_ROOT}/miu/data/dataset/MIU/train.jsonl}"
-export LOYAL_MIU_VAL_RECORDS="${LOYAL_MIU_VAL_RECORDS:-${TRAINING_ENV_ROOT}/miu/data/dataset/MIU/val.jsonl}"
-export LOYAL_EIL_TRAIN_RECORDS="${LOYAL_EIL_TRAIN_RECORDS:-${TRAINING_ENV_ROOT}/eil/data/dataset/EIL/train.jsonl}"
-export LOYAL_EIL_VAL_RECORDS="${LOYAL_EIL_VAL_RECORDS:-${TRAINING_ENV_ROOT}/eil/data/dataset/EIL/val.jsonl}"
-
-# The official launchers are configured for the verified eight-GPU host. EIL
-# now calls its adversary API remotely, so its six training/rollout GPUs are
-# selected solely by LOYAL_EIL_TRAIN_GPU_DEVICES.
-export LOYAL_MIU_TRAIN_GPU_COUNT="${LOYAL_MIU_TRAIN_GPU_COUNT:-2}"
-export LOYAL_MIU_ROLLOUT_GPU_COUNT="${LOYAL_MIU_ROLLOUT_GPU_COUNT:-6}"
-export LOYAL_MIU_RAY_NUM_GPUS="${LOYAL_MIU_RAY_NUM_GPUS:-8}"
-# Megatron always retains the newest checkpoint and additionally retains
-# checkpoints whose step is divisible by this value.  Make the latter larger
-# than any normal run so per-step saves replace the prior checkpoint instead
-# of accumulating ~53 GB copies.
-export LOYAL_MIU_SAVE_RETAIN_INTERVAL="${LOYAL_MIU_SAVE_RETAIN_INTERVAL:-1000000}"
-export LOYAL_EIL_TRAIN_GPU_COUNT="${LOYAL_EIL_TRAIN_GPU_COUNT:-2}"
-export LOYAL_EIL_ROLLOUT_GPU_COUNT="${LOYAL_EIL_ROLLOUT_GPU_COUNT:-4}"
-export LOYAL_EIL_RAY_NUM_GPUS="${LOYAL_EIL_RAY_NUM_GPUS:-6}"
-export LOYAL_EIL_TRAIN_GPU_DEVICES="${LOYAL_EIL_TRAIN_GPU_DEVICES:-0,1,2,3,4,5}"
+# The experimental training protocol fixes the evaluator families: Qwen is
+# the EIL adversary and DeepSeek scores EIL utility/leakage and MIU reasoning.
+# Model variants remain configurable in .env, but a training run must not
+# silently change evaluator family between conditions.
+require_fixed_training_evaluators() {
+  local role model
+  for role in LOYAL_MIU_FAITHFULNESS_JUDGE_MODEL LOYAL_EIL_LEAKAGE_JUDGE_MODEL LOYAL_EIL_UTILITY_JUDGE_MODEL; do
+    model="${!role:-}"
+    if [[ "${model,,}" != *deepseek* ]]; then
+      echo "${role} must name a DeepSeek judge for the fixed training protocol; got ${model:-<unset>}" >&2
+      return 1
+    fi
+  done
+  model="${LOYAL_EIL_ADVERSARY_MODEL:-}"
+  if [[ "${model,,}" != *qwen* ]]; then
+    echo "LOYAL_EIL_ADVERSARY_MODEL must name a Qwen adversary for the fixed training protocol; got ${model:-<unset>}" >&2
+    return 1
+  fi
+}

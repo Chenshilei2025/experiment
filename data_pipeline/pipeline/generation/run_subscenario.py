@@ -20,8 +20,6 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from anthropic import Anthropic, APIStatusError, AuthenticationError, BadRequestError, NotFoundError, PermissionDeniedError
-
 from . import builder as pipeline
 
 
@@ -209,12 +207,27 @@ def append_log(path: Path, message: str) -> None:
 def is_permanent_api_error(error: Exception) -> bool:
     """Do not spin forever on invalid credentials, requests, or model access."""
     text = str(error).lower()
-    return "error code: 401" in text or "invalid token" in text or isinstance(error, (AuthenticationError, PermissionDeniedError, BadRequestError, NotFoundError)) or (
-        isinstance(error, APIStatusError) and 400 <= error.status_code < 500 and error.status_code != 429
+    status = getattr(error, "status_code", None)
+    return "error code: 401" in text or "invalid token" in text or type(error).__name__ in {
+        "AuthenticationError", "PermissionDeniedError", "BadRequestError", "NotFoundError",
+    } or (
+        isinstance(status, int) and 400 <= status < 500 and status != 429
     )
 
 
-def generate_record(client: Anthropic, block: pipeline.PromptBlock, ordinal: int, args: argparse.Namespace) -> tuple[dict, dict]:
+def make_anthropic_client(timeout: float) -> Any:
+    """Import the optional generation SDK only when a model call is requested."""
+    try:
+        from anthropic import Anthropic
+    except ImportError as exc:
+        raise RuntimeError(
+            "Generation requires the optional 'anthropic' package. Install "
+            "data_pipeline/requirements.txt before running without --dry-run."
+        ) from exc
+    return Anthropic(timeout=timeout, max_retries=0)
+
+
+def generate_record(client: Any, block: pipeline.PromptBlock, ordinal: int, args: argparse.Namespace) -> tuple[dict, dict]:
     """Generate one ordinal once so invalid records do not monopolize a worker."""
     record_id = f"{pipeline.slugify(block.scenario)}-{ordinal:05d}"
     try:
@@ -316,7 +329,7 @@ def main() -> int:
                 append_dataset_record(args.dataset_dir.resolve(), json.loads(line), final_ids)
     # A stalled upstream request must become a retryable record failure, never
     # block the active subscenario indefinitely.
-    client = None if args.dry_run else Anthropic(timeout=args.request_timeout, max_retries=0)
+    client = None if args.dry_run else make_anthropic_client(args.request_timeout)
 
     pending = [
         ordinal for ordinal in range(args.ordinal_start, args.ordinal_start + count)
@@ -343,7 +356,7 @@ def main() -> int:
         with ThreadPoolExecutor(max_workers=min(args.workers, len(pending) or 1)) as executor:
             def submit_ordinal(ordinal: int) -> None:
                 futures[executor.submit(
-                    generate_record, Anthropic(timeout=args.request_timeout, max_retries=0), block, ordinal, args,
+                    generate_record, make_anthropic_client(args.request_timeout), block, ordinal, args,
                 )] = ordinal
 
             def submit_next() -> bool:

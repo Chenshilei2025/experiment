@@ -21,7 +21,11 @@ from scripts.evaluation.runner import generated_test_run, saved_response_rescore
 
 
 def _checkpoint() -> Path:
-    return Path(os.environ.get("LOYAL_QWEN3_4B_HF_CHECKPOINT", "/ssd/shilei/models/Qwen3-4B"))
+    """Use the active model profile, retaining the old Qwen name as a fallback."""
+    return Path(os.environ.get(
+        "LOYAL_MODEL_HF_CHECKPOINT",
+        os.environ.get("LOYAL_QWEN3_4B_HF_CHECKPOINT", "/ssd/shilei/models/Qwen3-4B"),
+    ))
 
 
 def _add_generation_args(parser: argparse.ArgumentParser, mechanism: str, max_new_tokens: int) -> None:
@@ -141,7 +145,7 @@ def _run_miu_rescore(args: argparse.Namespace) -> None:
     run["faithfulness_rescore_note"] = (
         "Recovered after fixing cross-event-loop client reuse; model responses unchanged."
         if not args.only_newly_valid else
-        "Re-scored responses newly valid under equivalent plain E# citation syntax; model responses unchanged."
+        "Re-scored responses newly valid under the active strict [E#] citation protocol; model responses unchanged."
     )
     summary_path.write_text(json.dumps(miu.summarize(recovered, run=run), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print("FINAL_SUMMARY=" + summary_path.read_text(encoding="utf-8").strip(), flush=True)

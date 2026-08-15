@@ -1,24 +1,33 @@
-# Scripts layout
+# Experiment runtime
 
-- `common/`: shared Python helpers used by training and evaluation.
-- `data/`: conversion of source records into SLIME prompt datasets.
-- `training/`: preflight validation, scheduling, rollouts, rewards, and filters.
-- `evaluation/`: model evaluation and saved-response rescoring.
-- `launch/`: shell entry points, container wrapper, environment loading, and judge relay.
+Only shared code used by the experiments is kept here.
 
-Model lifecycle helpers:
+- `experiment_runner.py`: executes JSON-defined multi-stage training conditions.
+- `common/`: API client and prompt-safe shared helpers.
+- `data/prepare_slime.py`: canonical MIU/EIL record → SLIME prompt conversion.
+- `training/`: preflight checks, MIU rollout repair, and SLIME reward hooks.
+- `evaluation/`: shared generation, scoring, rescoring, and EIL shard merging.
+- `launch/run-miu.sh`, `launch/run-eil.sh`: visible mechanism recipes (data, reward paths, hyperparameters).
+- `launch/submit_training.sh`, `launch/run_training_container.sh`: shared Ray and Docker mechanics.
+- `launch/model_profiles.sh`: Qwen/GLM/Llama model setup.
+- `export_final_checkpoint.sh`, `run_test_container.sh`: trained-model export and standard testing.
 
-- `export_final_checkpoint.sh`: converts the latest complete training checkpoint to a Hugging Face model in `artifacts/exported_models/` using the pinned Docker image.
-- `run_test_container.sh`: runs MIU or EIL baseline/final test generation and scoring inside the pinned Docker image. Test JSONL is mounted read-only; results are written to a new directory under `artifacts/evaluations/`.
+Experiment conditions belong in `experiments/*/configs/`. They may override
+training hyperparameters, seed, and rollout budgets, but evaluator endpoints,
+evaluator models, and credentials remain in `.env`.
 
-Use the launchers from `scripts/launch/`:
+The default JSON `evaluation` plan evaluates the base model on MIU and EIL
+before training, then exports the exact checkpoint iteration and evaluates both
+benchmarks after every stage.  `manifest.json` records the labels, iterations,
+and result directories, so order-training stages cannot be overwritten by a
+later stage before they are tested.
 
-```bash
-bash scripts/launch/run_training_container.sh miu
-bash scripts/launch/run_training_container.sh eil
-bash scripts/launch/run_loyal_smoke.sh
-bash scripts/export_final_checkpoint.sh Qwen3-4B_loyal_api_baseline
-bash scripts/run_test_container.sh miu baseline baseline_miu_v1
-bash scripts/run_test_container.sh eil final final_eil_v1
-bash scripts/launch/run_full_api_training_and_tests.sh run_001
-```
+`run-miu.sh` and `run-eil.sh` are the source of truth for their default
+training, rollout, reward-worker, checkpoint, evaluation, and W&B settings.
+`.env` contains only host resource selection, model storage, and remote API
+service configuration.
+
+All supported open base models (`qwen3-4b`, `glm-z1-9b`, and
+`llama3.1-8b-instruct`) use those same MIU/EIL recipes. `launch/model_profiles.sh`
+is the only model-specific layer: it selects the HF/reference checkpoints,
+SLIME architecture arguments, and chat-template options.

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "experiment": "reward_ablation",
+  "context": {"condition": "eil_lambda_1"},
+  "checkpoint_template": "reward-ablation_{run_name}_{condition}_seed{seed}",
+  "base_model": "qwen3-4b",
+  "seed": 1234,
+  "environment": {"LOYAL_EIL_LEAKAGE_LAMBDA": 1.0},
+  "evaluation": {
+    "baseline": true,
+    "after_each_stage": true,
+    "mechanisms": ["miu", "eil"]
+  },
+  "stages": [
+    {"mechanism": "eil", "rollouts": 840}
+  ]
+}

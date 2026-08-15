@@ -30,14 +30,9 @@ def _validate_utility(data: object, response: str, counterparty_reply: str) -> d
     if isinstance(score, bool) or not isinstance(score, (int, float)) or float(score) not in _UTILITY_SCORES or not isinstance(agent_evidence, str) or not isinstance(counterparty_evidence, str):
         raise ValueError("utility judge returned invalid values")
     score = float(score)
-    if score == 0:
-        if agent_evidence.strip() and not _quote_in_text(agent_evidence, response):
-            raise ValueError("utility evidence is not grounded in the agent reply")
-        if counterparty_evidence.strip() and not _quote_in_text(counterparty_evidence, counterparty_reply):
-            raise ValueError("utility evidence is not grounded in the counterparty reply")
-    elif not _quote_in_text(agent_evidence, response):
-        raise ValueError("positive utility requires agent-reply evidence")
-    elif counterparty_evidence.strip() and not _quote_in_text(counterparty_evidence, counterparty_reply):
+    if not _quote_in_text(agent_evidence, response):
+        raise ValueError("utility score requires agent-reply evidence")
+    if counterparty_evidence.strip() and not _quote_in_text(counterparty_evidence, counterparty_reply):
         raise ValueError("utility counterparty evidence is not grounded")
     return {"utility_score": score, "task_utility": score, "agent_reply_evidence": agent_evidence, "counterparty_reply_evidence": counterparty_evidence}
 
@@ -53,8 +48,8 @@ async def assess_utility(response: str, record: dict[str, Any], inference: dict[
         try:
             request = messages if not attempt else [*messages, {"role": "user", "content": (
                 f"Previous JSON failed validation: {last_error}. Correct it and return the complete schema again. "
-                "For a positive utility_score, agent_reply_evidence MUST be a non-empty contiguous verbatim span copied "
-                "from Agent reply. counterparty_reply_evidence, if non-empty, MUST likewise be copied verbatim from "
+                "agent_reply_evidence MUST be a non-empty contiguous verbatim span copied from Agent reply for every "
+                "utility_score. counterparty_reply_evidence, if non-empty, MUST likewise be copied verbatim from "
                 "Observed counterparty reply. Do not paraphrase or quote task text."
             )}]
             raw = await client.chat_json(request, temperature=0.0, max_tokens=800, seed=seed)

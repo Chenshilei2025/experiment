@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "experiment": "reward_ablation",
+  "context": {"condition": "miu_eta_0_5"},
+  "checkpoint_template": "reward-ablation_{run_name}_{condition}_seed{seed}",
+  "base_model": "qwen3-4b",
+  "seed": 1234,
+  "environment": {"LOYAL_MIU_FAITHFULNESS_ETA": 0.5},
+  "evaluation": {
+    "baseline": true,
+    "after_each_stage": true,
+    "mechanisms": ["miu", "eil"]
+  },
+  "stages": [
+    {"mechanism": "miu", "rollouts": 660}
+  ]
+}

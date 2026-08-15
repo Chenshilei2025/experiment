@@ -18,9 +18,9 @@ def _parsed(option_id: str) -> ParsedPolicyOutput:
     return ParsedPolicyOutput(option_id, option_id, ())
 
 
-def test_decision_quality_is_exact_baseline_option_match() -> None:
-    assert score_baseline_option_match(_parsed("opt_b"), _record())["decision_quality"] == 1.0
-    assert score_baseline_option_match(_parsed("opt_a"), _record())["decision_quality"] == 0.0
+def test_decision_exact_match_is_the_baseline_option_match() -> None:
+    assert score_baseline_option_match(_parsed("opt_b"), _record())["decision_exact_match"] == 1.0
+    assert score_baseline_option_match(_parsed("opt_a"), _record())["decision_exact_match"] == 0.0
 
 
 def test_decision_score_records_the_reference_option() -> None:

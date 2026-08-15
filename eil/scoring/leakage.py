@@ -31,10 +31,16 @@ def _configured_temperatures(value: str | None, default: str, name: str) -> tupl
 
 
 def adversary_temperature(rollout_id: int | None = None) -> float:
-    """Select one temperature per rollout, shared by every GRPO candidate."""
+    """Cycle through the training adversary distribution by rollout ID.
+
+    A rollout group receives one shared temperature, so GRPO candidates remain
+    comparable; successive groups are exposed to the full configured adversary
+    distribution.
+    """
     configured = os.getenv("LOYAL_EIL_ADVERSARY_TEMPERATURES")
-    default = os.getenv("LOYAL_EIL_ADVERSARY_TEMPERATURE", "0.6")
-    temperatures = _configured_temperatures(configured, default, "EIL adversary temperatures")
+    temperatures = _configured_temperatures(
+        configured, "0.3,0.6,0.8,1.0", "EIL adversary temperatures",
+    )
     return temperatures[(rollout_id or 0) % len(temperatures)]
 
 
@@ -114,7 +120,10 @@ async def _infer_at_temperature(response: str, record: dict[str, Any], temperatu
                 adversary_inference_messages(record, response), temperature=temperature,
                 max_tokens=int(os.getenv(
                     "LOYAL_EIL_ADVERSARY_RETRY_MAX_TOKENS" if attempt else "LOYAL_EIL_ADVERSARY_MAX_TOKENS",
-                    "5632" if attempt else "5120",
+                    # The adversary returns a compact JSON object.  Long
+                    # hidden reasoning adds latency without adding observable
+                    # recovery evidence, so retain a bounded completion cap.
+                    "2048" if attempt else "1536",
                 )),
                 seed=seed,
             )

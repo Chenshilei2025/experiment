@@ -48,7 +48,7 @@ def _log_group(samples, *, kept: bool, reason: str, values: list[float] | None =
             "training_eligible": bool(reward.get("training_eligible", False)),
             "reward_category": str(reward.get("reward_category", "unknown")),
             "policy_output_valid": _finite_float(reward.get("policy_output_valid")),
-            "decision_quality": _finite_float(reward.get("decision_quality")),
+            "decision_exact_match": _finite_float(reward.get("decision_exact_match")),
             "reasoning_faithfulness": _finite_float(reward.get("reasoning_faithfulness")),
             "faithfulness_latency_seconds": _finite_float(reward.get("faithfulness_judge_latency_seconds")),
             "reasoning_hard_gate": reward.get("reasoning_hard_gate"),

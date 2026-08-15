@@ -13,7 +13,7 @@ Configuration and source corpora stay in `data/`; executable code lives in
 | Directory | Responsibility |
 |---|---|
 | `pipeline/generation/` | Scenario planning, one-scenario generation, and full-run orchestration. |
-| `pipeline/validation/` | Structural, semantic, and diversity release gates. |
+| `pipeline/validation/` | The two read-only release gates: `diversity.py` and `quality.py`. |
 | `pipeline/miu/` | MIU release construction and targeted baseline/manipulation repair. |
 | `pipeline/operations/` | Inventory, audit reconstruction, and record quarantine maintenance. |
 | `loyal_core/` | OpenAI-compatible client and schema helpers for the MIU baseline gate. |
@@ -21,6 +21,12 @@ Configuration and source corpora stay in `data/`; executable code lives in
 The small generation helpers are intentionally consolidated in
 `pipeline/generation/builder.py`; it owns the source extractors, diversity
 contracts, request-boundary validation, record validation, and JSONL helpers.
+
+The validation package is intentionally limited to two modules.
+`pipeline.validation.diversity` reports family-domain/subscenario coverage and
+the functional types of EIL/MIU loyalty-relevant fields. `pipeline.validation.quality` contains
+static release gates, information-isolation diagnostics, and the independent
+two-model MIU baseline audit.
 
 ## Install
 
@@ -51,6 +57,10 @@ the paths expected by `pipeline/generation/builder.py`. The scenario allowlists
 are documented in `data/generation_scenarios.json` and
 the generated `data/docs/PIPELINE_INVENTORY.md` inventory. Generate that
 inventory with `python -m pipeline.operations.write_inventory`.
+Audit every source allowlist, extractor, and local snapshot with
+`python -m pipeline.operations.audit_external_sources`. This read-only audit
+distinguishes missing source data from an unavailable optional dependency such
+as `pyarrow`.
 
 ## Generate and gate
 
@@ -63,10 +73,31 @@ python -m pipeline.generation.run_subscenario \
   --dataset-dir data/dataset
 ```
 
-Run the structural release gate (from the `data_pipeline/` directory):
+Run the dataset diversity and quality reports (from the `data_pipeline/`
+directory):
 
 ```bash
-python -m pipeline.validation.check_generated_dataset --dataset-dir data/dataset
+python -m pipeline.validation.diversity dataset \
+  --eil-dir ../eil/data/dataset/EIL --miu-dir ../miu/data/dataset/MIU \
+  --report data/reports/diversity.json
+
+python -m pipeline.validation.quality dataset --dataset-dir data/dataset
+```
+
+For the checked-out release layout, provide the two mechanism directories
+explicitly:
+
+```bash
+PYTHONPATH=data_pipeline python -m pipeline.validation.quality dataset \
+  --eil-dir eil/data/dataset/EIL --miu-dir miu/data/dataset/MIU
+```
+
+`quality baseline-audit` makes external model calls and writes an audit (and,
+if requested, a separate consensus-only dataset). It is not part of the static
+release command above:
+
+```bash
+python -m pipeline.validation.quality baseline-audit --help
 ```
 
 Run the full sequential pipeline after validating configuration and credentials:

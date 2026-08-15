@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Convert one downloaded HF model profile to SLIME/Megatron torch_dist format.
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+  echo "usage: $0 {qwen3-4b|glm-z1-9b|llama3.1-8b-instruct}" >&2
+  exit 2
+fi
+
+MODEL_KEY="$1"
+case "${MODEL_KEY}" in qwen3-4b|glm-z1-9b|llama3.1-8b-instruct) ;; *)
+  echo "unsupported model profile: ${MODEL_KEY}" >&2; exit 2 ;; esac
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/env.sh"
+: "${LOYAL_MODEL_ROOT:?set LOYAL_MODEL_ROOT in .env}"
+: "${LOYAL_SLIME_IMAGE:=slimerl/slime:nightly-dev-202511127a}"
+
+case "${MODEL_KEY}" in
+  qwen3-4b|glm-z1-9b) MODEL_MOUNT_ROOT="${LOYAL_MODEL_ROOT}" ;;
+  llama3.1-8b-instruct) MODEL_MOUNT_ROOT="${LOYAL_LLAMA3_1_8B_MODEL_ROOT}" ;;
+esac
+if [[ ! -d "${MODEL_MOUNT_ROOT}" ]]; then
+  echo "model root does not exist: ${MODEL_MOUNT_ROOT}" >&2
+  exit 1
+fi
+
+docker run --rm --gpus all --network host --ipc host --shm-size=16g --entrypoint bash \
+  -e "LOYAL_BASE_MODEL=${MODEL_KEY}" \
+  -v "${PROJECT_ROOT}:/workspace/loyal_agent:ro" \
+  -v "${MODEL_MOUNT_ROOT}:/models" \
+  -w /workspace/loyal_agent \
+  "${LOYAL_SLIME_IMAGE}" \
+  -lc 'set -euo pipefail
+    SLIME_ROOT=/root/slime
+    source scripts/launch/model_profiles.sh
+    test -d "${LOYAL_MODEL_HF_CHECKPOINT}"
+    if [[ -e "${LOYAL_MODEL_REF_LOAD}" ]]; then
+      echo "refusing to overwrite existing torch_dist checkpoint: ${LOYAL_MODEL_REF_LOAD}" >&2
+      exit 1
+    fi
+    PYTHONPATH=/root/Megatron-LM python3 tools/convert_hf_to_torch_dist.py \
+      "${MODEL_ARGS[@]}" \
+      --hf-checkpoint "${LOYAL_MODEL_HF_CHECKPOINT}" \
+      --save "${LOYAL_MODEL_REF_LOAD}"'

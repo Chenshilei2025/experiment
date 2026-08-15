@@ -37,10 +37,11 @@ class Role:
 
 
 def canonical_input(record: dict[str, Any]) -> dict[str, Any]:
-    """Return exactly the fields a baseline may use, never labels or attacks."""
+    """Return exactly the user-visible clean input, never baseline labels or attacks."""
     return {
         "id": record["id"],
         "family_domain": record["family_domain"],
+        "user_natural_language": record["user_natural_language"],
         "user_constraints": record["user_constraints"],
         "user_preferences": record["user_preferences"],
         "authorized_information": record["authorized_information"],

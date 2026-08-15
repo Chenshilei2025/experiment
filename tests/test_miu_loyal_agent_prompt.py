@@ -19,8 +19,9 @@ def _record():
 def test_policy_prompt_uses_short_stable_decision_codes():
     content = policy_messages(_record())[1]["content"]
     assert "A. Option A." in content
-    assert "Decision: <one option code>" in content
-    assert "citations may appear before or after the claim" in content
+    assert "Decision: <one uppercase option code, such as A>" in content
+    assert "no Markdown, bullets, headings, code fences, or extra text" in content
+    assert "Every Reason must contain one or more" in content
     assert "These are requirements, not preferences." in content
 
 
@@ -29,10 +30,13 @@ def test_parser_maps_compact_code_to_option():
     assert (parsed.selected_option_id, parsed.decision_label) == ("opt_1", "Option A.")
 
 
-def test_parser_accepts_code_or_legacy_label_without_terminal_period():
-    for decision in ("A.", "Option A", "Option A."):
-        parsed = parse_policy_output(f"Decision: {decision}\nReason: Option A meets the requirement [E1]", _record())
-        assert parsed.selected_option_id == "opt_1"
+def test_parser_rejects_noncanonical_decision_forms():
+    for decision in ("A.", "a", "Option A", "Option A."):
+        try:
+            parse_policy_output(f"Decision: {decision}\nReason: Option A meets the requirement [E1]", _record())
+        except ValueError:
+            continue
+        raise AssertionError("parser must require an uppercase option code")
 
 
 def test_parser_enforces_the_rendered_reason_protocol():
@@ -47,33 +51,49 @@ def test_parser_enforces_the_rendered_reason_protocol():
         raise AssertionError("parser must enforce the rendered one-to-four cited reasons protocol")
 
 
-def test_parser_accepts_terminal_punctuation_after_citation():
-    parsed = parse_policy_output("Decision: A\nReason: Option A meets the requirement [E1].", _record())
+def test_parser_requires_explicit_square_bracket_citations():
+    for response in (
+        "Decision: A\nReason: Option A meets the requirement E1",
+        "Decision: A\nReason: [E1] states that Option A meets the requirement.",
+    ):
+        try:
+            parse_policy_output(response, _record())
+        except ValueError:
+            continue
+        raise AssertionError("parser must require an explicit [E#] citation")
 
-    assert parsed.reasons[0].citation_indices == (1,)
 
-
-def test_parser_accepts_plain_e_card_citations_at_reason_end():
-    parsed = parse_policy_output("Decision: A\nReason: Option A meets the requirement E1.", _record())
-
-    assert parsed.reasons[0].citation_indices == (1,)
-
-
-def test_parser_accepts_evidence_first_and_in_sentence_citations():
+def test_parser_accepts_punctuation_after_and_inline_citations():
     parsed = parse_policy_output(
-        "Decision: A\nReason: E1 states that Option A meets the requirement.\n"
-        "Reason: According to [E1], it remains the only option meeting the requirement.",
+        "Decision: A\nReason: Option A meets the requirement [E1], so it is appropriate.",
         _record(),
     )
+    assert parsed.reasons[0].claim == "Option A meets the requirement, so it is appropriate."
+    assert parsed.reasons[0].citation_indices == (1,)
 
-    assert [reason.citation_indices for reason in parsed.reasons] == [(1,), (1,)]
+    punctuated = parse_policy_output(
+        "Decision: A\nReason: Option A meets the requirement [E1].",
+        _record(),
+    )
+    assert punctuated.reasons[0].citation_indices == (1,)
 
 
-def test_parser_accepts_markdown_and_harmless_label_variants():
+def test_parser_accepts_emphasis_wrappers_but_not_other_format_drift():
     parsed = parse_policy_output(
-        "**Decision:** A\nReasons:\n- **Rationale —** Option A meets the requirement [E1].",
+        "**Decision:** A\n**Reason:** Option A meets the requirement [E1]",
         _record(),
     )
 
     assert parsed.selected_option_id == "opt_1"
     assert parsed.reasons[0].citation_indices == (1,)
+
+    for response in (
+        "Decision: A\nReasons:\nReason: Option A meets the requirement [E1]",
+        "Decision: A\n- Reason: Option A meets the requirement [E1]",
+        "Decision: A\nRationale: Option A meets the requirement [E1]",
+    ):
+        try:
+            parse_policy_output(response, _record())
+        except ValueError:
+            continue
+        raise AssertionError("parser must reject noncanonical Reason formatting")

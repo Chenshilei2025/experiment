@@ -15,6 +15,17 @@ RowBuilder = Callable[[Record, str, dict[str, Any]], Record]
 Summarizer = Callable[[list[Record], dict[str, Any]], dict[str, Any]]
 
 
+def _progress_metrics(rows: list[Record], summarize: Summarizer) -> dict[str, Any]:
+    """Return the current aggregate metrics without pretending a run is final."""
+    summary = summarize(rows, run={})
+    keys = (
+        "n_scored", "n_policy_valid", "n_valid_and_judged", "reward_mean",
+        "task_utility_mean", "leakage_mean", "decision_exact_match_rate",
+        "reasoning_faithfulness_mean", "policy_output_valid_rate",
+    )
+    return {key: summary[key] for key in keys if key in summary}
+
+
 def generated_test_run(
     *, records: list[Record], checkpoint: Path, device_name: str, output_dir: Path,
     batch_size: int, max_new_tokens: int, prompt_builder: PromptBuilder,
@@ -39,7 +50,10 @@ def generated_test_run(
             batch_rows = [row_builder(record, response, score) for record, response, score in zip(batch, responses, scores, strict=True)]
             rows.extend(batch_rows)
             append_rows(output, batch_rows)
-            print(json.dumps({"event": "progress", "completed": len(rows), "total": len(records)}, ensure_ascii=False), flush=True)
+            print(json.dumps({
+                "event": "progress", "completed": len(rows), "total": len(records),
+                **_progress_metrics(rows, summarize),
+            }, ensure_ascii=False), flush=True)
     run["finished_at_unix"] = time.time()
     summary = summarize(rows, run)
     (output_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -66,7 +80,10 @@ def saved_response_rescore(
             batch_rows = [row_builder(record, row["response"], score) for row, record, score in zip(prior, batch, scores, strict=True)]
             rows.extend(batch_rows)
             append_rows(output, batch_rows)
-            print(json.dumps({"event": "rescore_progress", "completed": len(rows), "total": len(source_rows)}, ensure_ascii=False), flush=True)
+            print(json.dumps({
+                "event": "rescore_progress", "completed": len(rows), "total": len(source_rows),
+                **_progress_metrics(rows, summarize),
+            }, ensure_ascii=False), flush=True)
     run["finished_at_unix"] = time.time()
     summary = summarize(rows, run)
     (output_dir / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

@@ -6,12 +6,14 @@ import asyncio
 from miu.reward import compute_miu_reward, compute_miu_reward_for_response
 
 
-def test_low_quality_decisions_remain_negative_but_are_distinguished_by_faithfulness() -> None:
+def test_low_quality_decisions_remain_negative_but_are_distinguished_by_faithfulness(monkeypatch) -> None:
+    monkeypatch.delenv("LOYAL_MIU_FAITHFULNESS_ETA", raising=False)
     assert compute_miu_reward(0.0, 0.0) == -1.0
     assert compute_miu_reward(0.0, 1.0) == -0.5
 
 
-def test_reward_remains_monotonic_in_exact_match_and_faithfulness() -> None:
+def test_reward_remains_monotonic_in_exact_match_and_faithfulness(monkeypatch) -> None:
+    monkeypatch.delenv("LOYAL_MIU_FAITHFULNESS_ETA", raising=False)
     assert compute_miu_reward(0.0, 0.0) < compute_miu_reward(0.0, 1.0)
     assert compute_miu_reward(0.0, 1.0) < compute_miu_reward(1.0, 0.0)
     assert compute_miu_reward(1.0, 0.0) < compute_miu_reward(1.0, 1.0)
@@ -24,6 +26,13 @@ def test_reward_rejects_out_of_range_components() -> None:
         except ValueError:
             continue
         raise AssertionError("out-of-range reward components must be rejected")
+
+
+def test_faithfulness_eta_controls_the_miu_shaping_weight(monkeypatch) -> None:
+    monkeypatch.setenv("LOYAL_MIU_FAITHFULNESS_ETA", "0")
+    assert compute_miu_reward(1.0, 0.0) == compute_miu_reward(1.0, 1.0) == 1.0
+    monkeypatch.setenv("LOYAL_MIU_FAITHFULNESS_ETA", "1")
+    assert compute_miu_reward(0.0, 1.0) == 0.0
 
 
 def test_invalid_policy_output_is_a_trainable_floor_reward_without_judges() -> None:

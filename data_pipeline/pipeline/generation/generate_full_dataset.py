@@ -77,23 +77,24 @@ def main() -> int:
         print(f"[{block.index:02d}/42] {block.scenario}: target={block.target_count}, workers={args.workers}", flush=True)
         subprocess.run(command, cwd=ROOT, check=True)
         diversity_command = [
-            sys.executable, "-m", "pipeline.validation.check_subscenario_diversity",
+            sys.executable, "-m", "pipeline.validation.diversity", "subscenario",
             "--records", str(DATA / "runs" / pipeline.slugify(block.scenario) / args.run_id / "records.jsonl"),
             "--audit", str(DATA / "runs" / pipeline.slugify(block.scenario) / args.run_id / "records.audit.jsonl"),
             "--require-complete",
             "--report", str(DATA / "runs" / pipeline.slugify(block.scenario) / args.run_id / "diversity_report.json"),
         ]
         subprocess.run(diversity_command, cwd=ROOT, check=True)
-        semantic_command = [
-            sys.executable, "-m", "pipeline.validation.check_semantic_quality",
+        quality_command = [
+            sys.executable, "-m", "pipeline.validation.quality", "subscenario",
             "--records", str(DATA / "runs" / pipeline.slugify(block.scenario) / args.run_id / "records.jsonl"),
-            "--report", str(DATA / "runs" / pipeline.slugify(block.scenario) / args.run_id / "semantic_quality_report.json"),
+            "--audit", str(DATA / "runs" / pipeline.slugify(block.scenario) / args.run_id / "records.audit.jsonl"),
+            "--report", str(DATA / "runs" / pipeline.slugify(block.scenario) / args.run_id / "quality_report.json"),
         ]
-        subprocess.run(semantic_command, cwd=ROOT, check=True)
-        quality_command = [sys.executable, "-m", "pipeline.validation.check_generated_dataset", "--dataset-dir", str(args.dataset_dir)]
-        if args.quality_report:
-            quality_command.extend(["--report", str(args.quality_report)])
         subprocess.run(quality_command, cwd=ROOT, check=True)
+        dataset_quality_command = [sys.executable, "-m", "pipeline.validation.quality", "dataset", "--dataset-dir", str(args.dataset_dir)]
+        if args.quality_report:
+            dataset_quality_command.extend(["--report", str(args.quality_report)])
+        subprocess.run(dataset_quality_command, cwd=ROOT, check=True)
     return 0
 
 

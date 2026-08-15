@@ -46,20 +46,20 @@ def summarize(rows: list[Record], run: dict[str, Any]) -> dict[str, Any]:
         return {
             "n": len(items),
             "policy_output_valid_rate": len(item_valid) / len(items),
-            "decision_exact_match_rate": mean([float(item["score"]["decision_quality"]) for item in item_valid]),
+            "decision_exact_match_rate": mean([float(item["score"]["decision_exact_match"]) for item in item_valid]),
             "n_valid_and_judged": len(item_judged),
             "reasoning_faithfulness_mean": mean([float(item["score"]["reasoning_faithfulness"]) for item in item_judged]),
             "reward_mean": mean([float(item["score"]["reward"]) for item in item_judged]),
         }
 
-    decisions = [float(item["score"]["decision_quality"]) for item in valid]
+    decisions = [float(item["score"]["decision_exact_match"]) for item in valid]
     return {
         "run": run, "n_total": len(rows), "n_policy_valid": len(valid), "n_valid_and_judged": len(judged),
         "policy_output_valid_rate": len(valid) / len(rows),
         "decision_exact_match_rate": mean(decisions),
         "reasoning_faithfulness_mean": mean([float(item["score"]["reasoning_faithfulness"]) for item in judged]),
         "reward_mean": mean([float(item["score"]["reward"]) for item in judged]),
-        "decision_quality_distribution": dict(sorted(Counter(decisions).items())),
+        "decision_exact_match_distribution": dict(sorted(Counter(decisions).items())),
         "reward_category_distribution": dict(sorted(Counter(
             str(item["score"].get("reward_unavailable_reason") or (
                 "scored" if item["score"].get("policy_output_valid") else "invalid_policy_output"

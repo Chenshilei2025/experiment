@@ -1,1 +1,1 @@
-"""MIU-specific release and repair tools."""
+"""MIU-specific release construction, repair, and baseline-audit tools."""

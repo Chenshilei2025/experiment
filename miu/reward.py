@@ -2,24 +2,26 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from typing import Any
 
-from miu.scoring.decision import score_decision_quality
+from miu.scoring.decision import score_decision_exact_match
 from miu.scoring.faithfulness import score_reasoning_faithfulness
 from miu.prompts.loyal_agent_prompt import parse_policy_output
 from scripts.common.api_client import ChatClient
 
 
-def compute_miu_reward(decision_quality: float, reasoning_faithfulness: float) -> float:
+def compute_miu_reward(decision_exact_match: float, reasoning_faithfulness: float) -> float:
     """Combine binary reference-option alignment with continuous faithfulness."""
-    if float(decision_quality) not in {0.0, 1.0}:
-        raise ValueError("MIU decision_quality must be an exact-match value of 0.0 or 1.0")
+    if float(decision_exact_match) not in {0.0, 1.0}:
+        raise ValueError("MIU decision_exact_match must be 0.0 or 1.0")
     if not 0.0 <= float(reasoning_faithfulness) <= 1.0:
         raise ValueError("MIU reasoning_faithfulness must be within [0, 1]")
-    # A faithful explanation cannot outweigh a wrong decision (its best reward
-    # remains negative), but it distinguishes otherwise tied bad candidates.
-    return -1.0 + 1.5 * float(decision_quality) + 0.5 * float(reasoning_faithfulness)
+    eta = float(os.getenv("LOYAL_MIU_FAITHFULNESS_ETA", "0.5"))
+    if not 0.0 <= eta <= 1.0:
+        raise ValueError("LOYAL_MIU_FAITHFULNESS_ETA must be within [0, 1]")
+    return -1.0 + (2.0 - eta) * float(decision_exact_match) + eta * float(reasoning_faithfulness)
 
 
 def _invalid_policy_reward(error: ValueError) -> dict[str, Any]:
@@ -35,7 +37,7 @@ def _invalid_policy_reward(error: ValueError) -> dict[str, Any]:
         # reserving the -1 floor for a judged bad decision plus unfaithful
         # reasoning.
         "reward": -0.75,
-        "decision_quality": 0.0,
+        "decision_exact_match": 0.0,
         "reasoning_faithfulness": 0.0,
         "training_eligible": True,
         "reward_unavailable_reason": None,
@@ -54,7 +56,7 @@ def _finalize_reward(
     """Combine independent judge results without treating service failure as policy evidence."""
     scorer_failed = bool(decision["decision_scorer_failed"] or faithfulness["faithfulness_scorer_failed"])
     reward = None if scorer_failed else compute_miu_reward(
-        float(decision["decision_quality"]), float(faithfulness["reasoning_faithfulness"])
+        float(decision["decision_exact_match"]), float(faithfulness["reasoning_faithfulness"])
     )
     return {
         **decision,
@@ -86,6 +88,6 @@ async def compute_miu_reward_for_response(
 
     # Decision alignment is a local exact-match lookup; only reasoning
     # faithfulness requires an external judge.
-    decision = await score_decision_quality(parsed, record)
+    decision = await score_decision_exact_match(parsed, record)
     faithfulness, faithfulness_latency = await _timed(score_reasoning_faithfulness(parsed, record, faithfulness_client))
     return _finalize_reward(parsed, decision, faithfulness, faithfulness_latency)

@@ -3,11 +3,11 @@
 set -euo pipefail
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  echo "usage: $0 {miu|eil} {baseline|final} <run-name>"
+  echo "usage: $0 {miu|eil} {baseline|final} <run-name> [checkpoint-iteration]"
   exit 0
 fi
-if [[ $# -ne 3 || ( "$1" != "miu" && "$1" != "eil" ) || ( "$2" != "baseline" && "$2" != "final" ) ]]; then
-  echo "usage: $0 {miu|eil} {baseline|final} <run-name>" >&2
+if [[ $# -lt 3 || $# -gt 4 || ( "$1" != "miu" && "$1" != "eil" ) || ( "$2" != "baseline" && "$2" != "final" ) ]]; then
+  echo "usage: $0 {miu|eil} {baseline|final} <run-name> [checkpoint-iteration]" >&2
   exit 2
 fi
 
@@ -23,17 +23,43 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/launch/env.sh"
+require_fixed_training_evaluators
+
+: "${LOYAL_BASE_MODEL:=qwen3-4b}"
 
 if [[ "${MODEL_KIND}" == "baseline" ]]; then
-  MODEL_PATH="/models/Qwen3-4B"
-  MODEL_MOUNT=( -v "${LOYAL_MODEL_ROOT}:/models:ro" )
+  if [[ $# -eq 4 ]]; then
+    echo "checkpoint iteration applies only to final models" >&2
+    exit 2
+  fi
+  : "${LOYAL_MODEL_ROOT:?set LOYAL_MODEL_ROOT in .env to the directory containing model profiles and torch_dist checkpoints}"
+  case "${LOYAL_BASE_MODEL}" in
+    qwen3-4b|glm-z1-9b) MODEL_MOUNT_ROOT="${LOYAL_MODEL_ROOT}" ;;
+    llama3.1-8b-instruct) MODEL_MOUNT_ROOT="${LOYAL_LLAMA3_1_8B_MODEL_ROOT}" ;;
+    *) echo "unsupported LOYAL_BASE_MODEL=${LOYAL_BASE_MODEL}" >&2; exit 2 ;;
+  esac
+  if [[ ! -d "${MODEL_MOUNT_ROOT}" ]]; then
+    echo "model root does not exist: ${MODEL_MOUNT_ROOT}" >&2
+    exit 1
+  fi
+  # Baseline evaluation sources the same profile used by training, so the
+  # selected HF checkpoint cannot drift from the experiment's base model.
+  SLIME_ROOT="${PROJECT_ROOT}/slime"
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/launch/model_profiles.sh"
+  MODEL_PATH="${LOYAL_MODEL_HF_CHECKPOINT}"
+  MODEL_MOUNT=( -v "${MODEL_MOUNT_ROOT}:/models:ro" )
 else
   CHECKPOINT_NAME="${LOYAL_SHARED_CHECKPOINT_NAME:-Qwen3-4B_loyal}"
   CHECKPOINT_ROOT="${PROJECT_ROOT}/artifacts/checkpoints/${CHECKPOINT_NAME}"
-  ITERATION="$(<"${CHECKPOINT_ROOT}/latest_checkpointed_iteration.txt")"
+  ITERATION="${4:-$(<"${CHECKPOINT_ROOT}/latest_checkpointed_iteration.txt")}"
+  if [[ ! "${ITERATION}" =~ ^[0-9]+$ ]]; then
+    echo "checkpoint iteration must be numeric" >&2
+    exit 2
+  fi
   HOST_MODEL_PATH="${PROJECT_ROOT}/artifacts/exported_models/${CHECKPOINT_NAME}/iter_$(printf '%07d' "${ITERATION}")"
   if [[ ! -f "${HOST_MODEL_PATH}/config.json" || ! -f "${HOST_MODEL_PATH}/model.safetensors.index.json" ]]; then
-    echo "final model is not exported; run scripts/export_final_checkpoint.sh ${CHECKPOINT_NAME}" >&2
+    echo "final model is not exported; run scripts/export_final_checkpoint.sh ${CHECKPOINT_NAME} ${ITERATION}" >&2
     exit 1
   fi
   MODEL_PATH="/final-model"
@@ -52,7 +78,8 @@ mkdir -p "${OUTPUT_ROOT}"
 TEST_GPU_DEVICES="${LOYAL_TEST_GPU_DEVICES:-0}"
 docker run --rm --gpus "device=${TEST_GPU_DEVICES}" --network host --ipc host --shm-size=16g --entrypoint bash \
   --env-file "${PROJECT_ROOT}/.env" \
-  -e "LOYAL_QWEN3_4B_HF_CHECKPOINT=${MODEL_PATH}" \
+  -e "LOYAL_BASE_MODEL=${LOYAL_BASE_MODEL}" \
+  -e "LOYAL_MODEL_HF_CHECKPOINT=${MODEL_PATH}" \
   -v "${PROJECT_ROOT}:/workspace/loyal_agent:ro" \
   -v "${OUTPUT_ROOT}:/outputs" \
   "${MODEL_MOUNT[@]}" \

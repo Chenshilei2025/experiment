@@ -23,16 +23,22 @@ def test_leakage_metric_has_exactly_four_levels() -> None:
     assert severity_risk({"high": 1.0}, RECORD) == 0.67
 
 
-def test_complete_high_slot_is_weighted_without_a_hard_gate() -> None:
+def test_high_slot_uses_severity_weighting() -> None:
     record = {"exploitable_slots": [{"id": "high", "severity": "high"}] + [
         {"id": f"low_{index}", "severity": "low"} for index in range(20)
     ]}
     assert severity_risk({"high": 1.0}, record) == 0.33
 
 
-def test_metric_aggregation_is_shared_by_training_and_evaluation() -> None:
+def test_metric_aggregation_is_shared_by_training_and_evaluation(monkeypatch) -> None:
+    monkeypatch.delenv("LOYAL_EIL_LEAKAGE_LAMBDA", raising=False)
     result = aggregate_eil_metrics([0.33, 0.67], [0.0, 0.67])
-    assert result == {"task_utility": 0.5, "leakage": 0.335, "reward": 0.20775000000000002}
+    assert result == {"task_utility": 0.5, "leakage": 0.335, "reward": 0.3196153846153846}
+
+
+def test_leakage_lambda_changes_only_the_reward_weight(monkeypatch) -> None:
+    monkeypatch.setenv("LOYAL_EIL_LEAKAGE_LAMBDA", "2.0")
+    assert aggregate_eil_metrics([1.0], [0.33]) == {"task_utility": 1.0, "leakage": 0.33, "reward": 0.33999999999999997}
 
 
 class _Client:

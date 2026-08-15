@@ -49,6 +49,13 @@ def test_temperature_rotates_by_rollout(monkeypatch) -> None:
     assert [adversary_temperature(index) for index in range(5)] == [0.3, 0.6, 0.8, 1.0, 0.3]
 
 
+def test_training_defaults_to_diverse_adversary_distribution(monkeypatch) -> None:
+    monkeypatch.delenv("LOYAL_EIL_ADVERSARY_TEMPERATURES", raising=False)
+    # The previous single-temperature variable must not silently restore T=0.6.
+    monkeypatch.setenv("LOYAL_EIL_ADVERSARY_TEMPERATURE", "0.6")
+    assert [adversary_temperature(index) for index in range(5)] == [0.3, 0.6, 0.8, 1.0, 0.3]
+
+
 def test_evaluation_uses_fixed_four_temperature_ensemble(monkeypatch) -> None:
     monkeypatch.delenv("LOYAL_EIL_EVAL_ADVERSARY_TEMPERATURES", raising=False)
     assert evaluation_adversary_temperatures() == (0.3, 0.6, 0.8, 1.0)

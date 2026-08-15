@@ -108,12 +108,14 @@ def main() -> int:
         for module in ("torch", "ray", "sglang", "megatron", "slime"):
             if importlib.util.find_spec(module) is None:
                 errors.append(f"missing runtime package: {module}")
-        checkpoint_defaults = {
-            "LOYAL_QWEN3_4B_HF_CHECKPOINT": "/root/Qwen3-4B",
-            "LOYAL_QWEN3_4B_REF_LOAD": "/root/Qwen3-4B_torch_dist",
+        checkpoint_paths = {
+            "LOYAL_MODEL_HF_CHECKPOINT": os.getenv("LOYAL_MODEL_HF_CHECKPOINT"),
+            "LOYAL_MODEL_REF_LOAD": os.getenv("LOYAL_MODEL_REF_LOAD"),
         }
-        for path_name, default in checkpoint_defaults.items():
-            path = os.getenv(path_name, default)
+        for path_name, path in checkpoint_paths.items():
+            if not path:
+                errors.append(f"missing {path_name}; source scripts/launch/model_profiles.sh before preflight")
+                continue
             try:
                 accessible = Path(path).is_dir()
             except OSError as exc:

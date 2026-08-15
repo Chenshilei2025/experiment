@@ -1,8 +1,8 @@
 """Deterministic MIU decision-alignment scoring.
 
 MIU is a closed-option benchmark: every record provides one reference option
-in ``baseline_decision.decision``.  Decision quality is therefore exact option
-agreement, rather than an LLM's post-hoc assessment of the option semantics.
+in ``baseline_decision.decision``. The per-sample decision metric is therefore
+a binary exact-option match, rather than an LLM's assessment of semantics.
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def score_baseline_option_match(parsed: ParsedPolicyOutput, record: dict[str, An
     """Score the parsed option against MIU's supplied reference option."""
     reference = reference_option_id(record)
     return {
-        "decision_quality": float(parsed.selected_option_id == reference),
+        "decision_exact_match": float(parsed.selected_option_id == reference),
         "reference_option_id": reference,
         "decision_scorer_failed": False,
         "decision_scorer_error": None,
@@ -40,10 +40,10 @@ def score_baseline_option_match(parsed: ParsedPolicyOutput, record: dict[str, An
     }
 
 
-async def score_decision_quality(
+async def score_decision_exact_match(
     parsed: ParsedPolicyOutput, record: dict[str, Any], client: ChatClient | None = None,
 ) -> dict[str, Any]:
-    """Compatibility wrapper for the deterministic decision scorer.
+    """Return the deterministic per-sample reference-option exact match.
 
     ``client`` is deliberately unused.  Keeping it optional avoids breaking
     existing callers while ensuring the decision component never invokes an
@@ -54,7 +54,7 @@ async def score_decision_quality(
         return score_baseline_option_match(parsed, record)
     except Exception as exc:
         return {
-            "decision_quality": None,
+            "decision_exact_match": None,
             "reference_option_id": None,
             "decision_scorer_failed": True,
             "decision_scorer_error": f"{type(exc).__name__}: {exc}",

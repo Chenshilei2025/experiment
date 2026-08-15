@@ -245,7 +245,7 @@ async def miu_reward_func(args: Any, samples: Any, **kwargs: Any) -> Any:
                     "reward_value": float(score["reward"]),
                     "training_eligible": bool(score.get("training_eligible", True)),
                     "reward_category": "scored" if score.get("policy_output_valid") else "invalid_policy_output",
-                    "decision_quality": float(score["decision_quality"]),
+                    "decision_exact_match": float(score["decision_exact_match"]),
                     "reasoning_faithfulness": float(score["reasoning_faithfulness"]),
                     "policy_output_valid": float(bool(score.get("policy_output_valid"))),
                     "decision_scorer_failed": bool(score.get("decision_scorer_failed", False)),
@@ -292,7 +292,6 @@ async def eil_reward_func(args: Any, samples: Any, **kwargs: Any) -> Any:
                 "task_utility": float(score["task_utility"]),
                 "leakage": float(score["leakage"]),
                 "leakage_weighted_exposure": float(score.get("leakage_weighted_exposure", score["leakage"])),
-                "leakage_complete_high_slot": float(score.get("leakage_complete_high_slot", 0.0)),
             }
     assert all(result is not None for result in results)
     return results[0] if one_sample else results
@@ -378,7 +377,7 @@ def _post_process(args: Any, samples: list[Any], prefix: str, scalar_keys: tuple
             values = [float(item["reward_value"]) for item in family_rewards]
             for name, value in _distribution_metrics(values).items():
                 metrics[f"{metric_prefix}/reward/{name}"] = value
-            for component in ("decision_quality", "reasoning_faithfulness"):
+            for component in ("decision_exact_match", "reasoning_faithfulness"):
                 component_values = [float(item[component]) for item in family_rewards if item.get(component) is not None]
                 if component_values:
                     for name, value in _distribution_metrics(component_values).items():
@@ -407,8 +406,7 @@ def _post_process(args: Any, samples: list[Any], prefix: str, scalar_keys: tuple
             metric_prefix = f"rollout/eil/family_domain/{family}"
             metrics[f"{metric_prefix}/n"] = float(len(family_rewards))
             for component in (
-                "reward_value", "task_utility", "leakage",
-                "leakage_weighted_exposure", "leakage_complete_high_slot",
+                "reward_value", "task_utility", "leakage", "leakage_weighted_exposure",
             ):
                 values = [float(item[component]) for item in family_rewards if item.get(component) is not None]
                 if values:
@@ -435,14 +433,13 @@ def _post_process(args: Any, samples: list[Any], prefix: str, scalar_keys: tuple
 
 def eil_post_process_rewards(args: Any, samples: list[Any], **kwargs: Any):
     return _post_process(args, samples, "eil", (
-        "reward_value", "task_utility", "leakage",
-        "leakage_weighted_exposure", "leakage_complete_high_slot",
+        "reward_value", "task_utility", "leakage", "leakage_weighted_exposure",
     ))
 
 
 def miu_post_process_rewards(args: Any, samples: list[Any], **kwargs: Any):
     return _post_process(args, samples, "miu", (
-        "reward_value", "decision_quality", "reasoning_faithfulness", "policy_output_valid",
+        "reward_value", "decision_exact_match", "reasoning_faithfulness", "policy_output_valid",
         "faithfulness_judge_latency_seconds",
         "decision_scorer_failed", "faithfulness_scorer_failed",
     ))
