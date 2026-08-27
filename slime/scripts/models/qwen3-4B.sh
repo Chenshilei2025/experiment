@@ -1,4 +1,5 @@
 MODEL_ARGS=(
+   --transformer-impl local
    --swiglu
    --num-layers 36
    --hidden-size 2560
