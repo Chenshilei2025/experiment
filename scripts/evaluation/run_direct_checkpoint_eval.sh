@@ -177,7 +177,6 @@ run_mechanism() {
       log "${mechanism}_shard_skip step=${step} shard=${shard}"
       continue
     fi
-    mkdir -p "${shard_dir}"
     log "${mechanism}_shard_start step=${step} shard=${shard} gpu=${shard}"
     if [[ "${mechanism}" == "miu" ]]; then
       CUDA_VISIBLE_DEVICES="${shard}" LOYAL_GPU_MEMORY_FRACTION=0.25 "${PYTHON}" -m scripts.evaluation.cli miu \
