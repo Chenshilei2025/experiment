@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "experiment": "mixed_reward_ablation_v2",
+  "context": {
+    "condition": "phase1-lambda050-e1m1-rollout160"
+  },
+  "checkpoint_template": "mixed-v2-{condition}-{run_name}-seed{seed}",
+  "base_model": "qwen3-4b",
+  "seed": 1234,
+  "mixed_ablation": {
+    "phase": "reward_coefficient",
+    "ratio": "E1M1",
+    "fixed_parameters": {
+      "miu_eta": 0.5,
+      "global_batch": 512,
+      "rollout_batch": 64,
+      "samples_per_prompt": 8,
+      "learning_rate": "2e-7",
+      "kl_loss_coef": 0.05,
+      "entropy_coef": 0.002,
+      "max_tokens_per_gpu": 4096
+    }
+  },
+  "environment": {
+    "LOYAL_MIXED_EIL_BATCH_FRACTION": "0.5",
+    "LOYAL_EIL_LEAKAGE_LAMBDA": "0.5",
+    "LOYAL_MIU_FAITHFULNESS_ETA": "0.5",
+    "LOYAL_MIXED_GLOBAL_BATCH_SIZE": "512",
+    "LOYAL_MIXED_ROLLOUT_BATCH_SIZE": "64",
+    "LOYAL_MIXED_SAMPLES_PER_PROMPT": "8",
+    "LOYAL_MIXED_MAX_RESPONSE_LEN": "1024",
+    "LOYAL_MIXED_MAX_TOKENS_PER_GPU": "4096",
+    "LOYAL_MIXED_LEARNING_RATE": "2e-7",
+    "LOYAL_MIXED_KL_LOSS_COEF": "0.05",
+    "LOYAL_MIXED_ENTROPY_COEF": "0.002",
+    "LOYAL_MIXED_OPTIMIZER_CPU_OFFLOAD": "0",
+    "LOYAL_MIXED_TRAIN_GPU_COUNT": "2",
+    "LOYAL_MIXED_ROLLOUT_GPU_COUNT": "2",
+    "LOYAL_MIXED_RAY_NUM_GPUS": "4",
+    "LOYAL_MIXED_SGLANG_MEM_FRACTION_STATIC": "0.78",
+    "LOYAL_MIXED_SGLANG_SERVER_CONCURRENCY": "64",
+    "LOYAL_MIXED_ENABLE_EVAL": "0",
+    "LOYAL_MIXED_SAVE_INTERVAL": "20"
+  },
+  "evaluation": {
+    "baseline": false,
+    "after_each_stage": false,
+    "mechanisms": [
+      "eil",
+      "miu"
+    ],
+    "checkpoint_iterations": [
+      19,
+      39,
+      59,
+      79,
+      99,
+      119,
+      139,
+      159
+    ]
+  },
+  "stages": [
+    {
+      "mechanism": "mixed",
+      "rollouts": 20
+    },
+    {
+      "mechanism": "mixed",
+      "rollouts": 20
+    },
+    {
+      "mechanism": "mixed",
+      "rollouts": 20
+    },
+    {
+      "mechanism": "mixed",
+      "rollouts": 20
+    },
+    {
+      "mechanism": "mixed",
+      "rollouts": 20
+    },
+    {
+      "mechanism": "mixed",
+      "rollouts": 20
+    },
+    {
+      "mechanism": "mixed",
+      "rollouts": 20
+    },
+    {
+      "mechanism": "mixed",
+      "rollouts": 20
+    }
+  ]
+}

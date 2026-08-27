@@ -6,6 +6,8 @@ import json
 import math
 import os
 import time
+import hashlib
+import copy
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -105,6 +107,7 @@ class RecordStore:
         if not sources or any(not source.is_file() for source in sources):
             raise FileNotFoundError(f"reward record file does not exist: {path}")
         self.records: dict[str, dict[str, Any]] = {}
+        self.by_subscenario: dict[str, list[dict[str, Any]]] = {}
         for source in sources:
             for line_number, line in enumerate(source.read_text(encoding="utf-8").splitlines(), 1):
                 record = json.loads(line)
@@ -112,11 +115,33 @@ class RecordStore:
                 if record.get("mechanism") != mechanism or not isinstance(record_id, str) or record_id in self.records:
                     raise ValueError(f"{source}:{line_number} has an invalid or duplicate {mechanism} record")
                 self.records[record_id] = record
+                if mechanism == "EIL" and isinstance(record.get("subscenario"), str):
+                    self.by_subscenario.setdefault(record["subscenario"], []).append(record)
 
     def get(self, record_id: object) -> dict[str, Any]:
         if not isinstance(record_id, str) or record_id not in self.records:
             raise KeyError(f"unknown reward record ID: {record_id!r}")
         return self.records[record_id]
+
+    def strategy_variant(self, record: dict[str, Any], rollout_id: int) -> dict[str, Any]:
+        """Swap only the EIL adversary profile within a matched subscenario.
+
+        The policy prompt and protected slots remain from the selected record;
+        only the pressure tactic supplied to the blind adversary is varied.
+        A rollout ID keyed draw ensures all candidates for one GRPO prompt
+        group face the same sampled profile.
+        """
+        if os.getenv("LOYAL_EIL_MULTI_STRATEGY", "0") != "1":
+            return record
+        options = self.by_subscenario.get(str(record.get("subscenario")), [])
+        profiles = [item.get("adversary_config") for item in options if isinstance(item.get("adversary_config"), dict)]
+        if not profiles:
+            return record
+        material = f"{record['id']}:{rollout_id}:strategy-v1".encode("utf-8")
+        index = int.from_bytes(hashlib.sha256(material).digest()[:8], "big") % len(profiles)
+        varied = copy.copy(record)
+        varied["adversary_config"] = copy.deepcopy(profiles[index])
+        return varied
 
 
 def _store(mechanism: str) -> RecordStore:
@@ -159,8 +184,26 @@ def _visible_response(sample: Any) -> tuple[str | None, str | None]:
     return (visible, None) if visible else ("", "empty_visible_response")
 
 
-def _unavailable_reward(reason: str) -> dict[str, Any]:
-    return {"reward_value": 0.0, "training_eligible": False, "reward_category": reason}
+def _record_metadata(mechanism: str, record: dict[str, Any]) -> dict[str, Any]:
+    """Carry non-secret dataset metadata into eval aggregation."""
+    metadata: dict[str, Any] = {
+        "mechanism": mechanism,
+        "record_id": str(record.get("id", "")),
+    }
+    for key in ("family_domain", "subscenario"):
+        value = record.get(key)
+        if isinstance(value, str) and value:
+            metadata[key] = value
+    return metadata
+
+
+def _unavailable_reward(reason: str, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {
+        **(metadata or {}),
+        "reward_value": 0.0,
+        "training_eligible": False,
+        "reward_category": reason,
+    }
 
 
 def _group_limiter(mechanism: str) -> asyncio.Semaphore:
@@ -205,11 +248,22 @@ def _pending_samples(samples: Any, mechanism: str) -> tuple[bool, list[dict[str,
     pending: list[tuple[int, str, dict[str, Any]]] = []
     store = _store(mechanism)
     for index, sample in enumerate(batch):
+        label = getattr(sample, "label", None)
+        # Mixed training labels are namespaced to prevent collisions
+        # between independently generated MIU and EIL record IDs. The
+        # component scorer still consumes the canonical source ID.
+        if isinstance(label, str) and ":" in label:
+            namespace, record_id = label.split(":", 1)
+            if namespace != mechanism:
+                raise ValueError(f"mixed label {label!r} was routed to {mechanism}")
+            label = record_id
+        record = store.get(label)
+        metadata = _record_metadata(mechanism, record)
         response, problem = _visible_response(sample)
         if problem and problem != "empty_visible_response":
-            results[index] = _unavailable_reward(problem)
+            results[index] = _unavailable_reward(problem, metadata)
         else:
-            pending.append((index, response or "", store.get(getattr(sample, "label", None))))
+            pending.append((index, response or "", record))
     return one_sample, results, pending
 
 
@@ -229,12 +283,14 @@ async def miu_reward_func(args: Any, samples: Any, **kwargs: Any) -> Any:
 
         async with _group_limiter("MIU"):
             raw = await _retry_failed_scores(pending, score_all, mechanism="MIU")
-        for (index, _, _), score in zip(pending, raw, strict=True):
+        for (index, _, record), score in zip(pending, raw, strict=True):
+            metadata = _record_metadata("MIU", record)
             if score["reward"] is None:
                 # Preserve the scorer diagnostics for the dynamic group filter.
                 # They are required to distinguish service failures from output
                 # protocol failures; neither category is a policy negative.
                 results[index] = {
+                    **metadata,
                     **score,
                     "reward_value": 0.0,
                     "training_eligible": False,
@@ -242,6 +298,7 @@ async def miu_reward_func(args: Any, samples: Any, **kwargs: Any) -> Any:
                 }
             else:
                 results[index] = {
+                    **metadata,
                     "reward_value": float(score["reward"]),
                     "training_eligible": bool(score.get("training_eligible", True)),
                     "reward_category": "scored" if score.get("policy_output_valid") else "invalid_policy_output",
@@ -265,6 +322,8 @@ async def miu_reward_func(args: Any, samples: Any, **kwargs: Any) -> Any:
 async def eil_reward_func(args: Any, samples: Any, **kwargs: Any) -> Any:
     """SLIME entrypoint for EIL training or fixed-ensemble evaluation rewards."""
     one_sample, results, pending = _pending_samples(samples, "EIL")
+    rollout_id = getattr(args, "current_rollout_id", getattr(args, "start_rollout_id", 0))
+    pending = [(index, response, _store("EIL").strategy_variant(record, rollout_id)) for index, response, record in pending]
     if pending:
         async def score_all(batch):
             return await batch_eil_rewards(
@@ -278,21 +337,66 @@ async def eil_reward_func(args: Any, samples: Any, **kwargs: Any) -> Any:
                     "LOYAL_EIL_EVAL_RM_MAX_CONCURRENT" if kwargs.get("evaluation") else "LOYAL_EIL_RM_MAX_CONCURRENT",
                     "2" if kwargs.get("evaluation") else "4",
                 )),
-                rollout_id=getattr(args, "current_rollout_id", getattr(args, "start_rollout_id", 0)),
+                rollout_id=rollout_id,
                 evaluation=bool(kwargs.get("evaluation")),
             )
 
         async with _group_limiter("EIL"):
             raw = await _retry_failed_scores(pending, score_all, mechanism="EIL")
-        for (index, _, _), score in zip(pending, raw, strict=True):
-            results[index] = _unavailable_reward("eil_evaluator_failure") if score.get("reward") is None else {
+        for (index, _, record), score in zip(pending, raw, strict=True):
+            # Preserve the compact failure class in diagnostics.  It is never
+            # treated as a policy label, but distinguishes an adversary outage
+            # from leakage/utility judge validation or transport failures on a
+            # later recovery attempt.
+            metadata = _record_metadata("EIL", record)
+            results[index] = (
+                {
+                    **_unavailable_reward("eil_evaluator_failure", metadata),
+                    "evaluator_error": str(score.get("evaluator_error") or "")[:300],
+                }
+                if score.get("reward") is None
+                else {
+                **metadata,
                 "reward_value": float(score["reward"]),
                 "training_eligible": True,
                 "reward_category": "scored",
                 "task_utility": float(score["task_utility"]),
                 "leakage": float(score["leakage"]),
-                "leakage_weighted_exposure": float(score.get("leakage_weighted_exposure", score["leakage"])),
-            }
+                "adversary_temperature": score.get("adversary_temperature"),
+                "adversary_recovered_slot_ids": score.get("adversary_recovered_slot_ids", []),
+                }
+            )
+    assert all(result is not None for result in results)
+    return results[0] if one_sample else results
+
+
+def _sample_mechanism(sample: Any) -> str:
+    label = getattr(sample, "label", None)
+    if not isinstance(label, str) or ":" not in label:
+        raise ValueError("mixed training requires labels in the form MIU:record_id or EIL:record_id")
+    mechanism, _ = label.split(":", 1)
+    if mechanism not in {"MIU", "EIL"}:
+        raise ValueError(f"unknown mixed-training mechanism prefix: {mechanism!r}")
+    return mechanism
+
+
+async def mixed_reward_func(args: Any, samples: Any, **kwargs: Any) -> Any:
+    """Route shuffled mixed-training samples to their established scorers."""
+    one_sample = not isinstance(samples, list)
+    batch = [samples] if one_sample else samples
+    indexed: dict[str, list[tuple[int, Any]]] = {"MIU": [], "EIL": []}
+    for index, sample in enumerate(batch):
+        indexed[_sample_mechanism(sample)].append((index, sample))
+    results: list[dict[str, Any] | None] = [None] * len(batch)
+    for mechanism, items in indexed.items():
+        if not items:
+            continue
+        scorer = miu_reward_func if mechanism == "MIU" else eil_reward_func
+        rewards = await scorer(args, [sample for _, sample in items], **kwargs)
+        if not isinstance(rewards, list):
+            rewards = [rewards]
+        for (index, _), reward in zip(items, rewards, strict=True):
+            results[index] = reward
     assert all(result is not None for result in results)
     return results[0] if one_sample else results
 
@@ -346,6 +450,22 @@ def _post_process(args: Any, samples: list[Any], prefix: str, scalar_keys: tuple
             metrics[f"rollout/{prefix}/{key}/median"] = compute_statistics(values)["median"]
     for category, count in Counter(str(item.get("reward_category", "unknown")) for item in reward_dicts).items():
         metrics[f"rollout/{prefix}/reward_category/{category}"] = count / len(reward_dicts)
+    if prefix == "mixed":
+        # Each mixed GRPO batch is single-task. Log its identity and reward
+        # components so W&B can audit the long-horizon batch frequency,
+        # reward-scale skew, and early reward hacking.
+        for task in ("EIL", "MIU"):
+            task_indexes = [index for index, sample in enumerate(samples) if _sample_mechanism(sample) == task]
+            if not task_indexes:
+                continue
+            task_rewards = [reward_dicts[index] for index in task_indexes]
+            task_prefix = f"rollout/mixed/task/{task.lower()}"
+            metrics[f"{task_prefix}/sample_fraction"] = len(task_indexes) / len(samples)
+            metrics[f"{task_prefix}/prompt_groups"] = len(task_indexes) / group_size
+            for component in ("reward_value", "task_utility", "leakage", "decision_exact_match", "reasoning_faithfulness"):
+                values = [float(item[component]) for item in task_rewards if item.get(component) is not None]
+                if values:
+                    metrics[f"{task_prefix}/{component}/mean"] = sum(values) / len(values)
     if prefix == "miu":
         # Health metrics are separate from policy reward: a remote scorer
         # outage must never look like poor policy behaviour.
@@ -406,7 +526,7 @@ def _post_process(args: Any, samples: list[Any], prefix: str, scalar_keys: tuple
             metric_prefix = f"rollout/eil/family_domain/{family}"
             metrics[f"{metric_prefix}/n"] = float(len(family_rewards))
             for component in (
-                "reward_value", "task_utility", "leakage", "leakage_weighted_exposure",
+                "reward_value", "task_utility", "leakage",
             ):
                 values = [float(item[component]) for item in family_rewards if item.get(component) is not None]
                 if values:
@@ -433,7 +553,7 @@ def _post_process(args: Any, samples: list[Any], prefix: str, scalar_keys: tuple
 
 def eil_post_process_rewards(args: Any, samples: list[Any], **kwargs: Any):
     return _post_process(args, samples, "eil", (
-        "reward_value", "task_utility", "leakage", "leakage_weighted_exposure",
+        "reward_value", "task_utility", "leakage",
     ))
 
 
@@ -442,4 +562,14 @@ def miu_post_process_rewards(args: Any, samples: list[Any], **kwargs: Any):
         "reward_value", "decision_exact_match", "reasoning_faithfulness", "policy_output_valid",
         "faithfulness_judge_latency_seconds",
         "decision_scorer_failed", "faithfulness_scorer_failed",
+    ))
+
+
+def mixed_post_process_rewards(args: Any, samples: list[Any], **kwargs: Any):
+    """Normalize one single-task mixed-training rollout and log its identity."""
+    tasks = {_sample_mechanism(sample) for sample in samples}
+    if len(tasks) != 1:
+        raise ValueError("a mixed-training rollout batch must contain exactly one task")
+    return _post_process(args, samples, "mixed", (
+        "reward_value", "decision_exact_match", "reasoning_faithfulness", "task_utility", "leakage",
     ))

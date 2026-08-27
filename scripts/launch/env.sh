@@ -65,7 +65,7 @@ require_fixed_training_evaluators() {
     fi
   done
   model="${LOYAL_EIL_ADVERSARY_MODEL:-}"
-  if [[ "${model,,}" != *qwen* ]]; then
+  if [[ "${LOYAL_ALLOW_EXPERIMENTAL_ADVERSARY:-0}" != 1 && "${model,,}" != *qwen* ]]; then
     echo "LOYAL_EIL_ADVERSARY_MODEL must name a Qwen adversary for the fixed training protocol; got ${model:-<unset>}" >&2
     return 1
   fi

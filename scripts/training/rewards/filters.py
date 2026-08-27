@@ -59,6 +59,15 @@ def _log_group(samples, *, kept: bool, reason: str, values: list[float] | None =
             "zero_std_group_resample_attempt": metadata.get("miu_zero_std_group_resample_attempt"),
             "resample_history": metadata.get("miu_resample_history", []),
         }
+        if isinstance(reward, dict) and "adversary_temperature" in reward:
+            # EIL-only, judge-grounded telemetry for the training diversity
+            # analysis. It intentionally excludes policy and adversary text.
+            candidate["adversary_temperature"] = _finite_float(reward.get("adversary_temperature"))
+            slot_ids = reward.get("adversary_recovered_slot_ids", [])
+            candidate["adversary_recovered_slot_ids"] = (
+                sorted(set(slot_ids)) if isinstance(slot_ids, list) and all(isinstance(slot_id, str) for slot_id in slot_ids)
+                else []
+            )
         candidates.append(candidate)
         if not candidate["training_eligible"]:
             entries.append({
@@ -93,8 +102,32 @@ def _finite_float(value):
     return float(value) if isinstance(value, int | float) and not isinstance(value, bool) else None
 
 
+def _miu_min_group_reward_std(samples) -> float:
+    """Return the optional MIU-only information floor for a GRPO group.
+
+    A merely non-zero difference is not necessarily informative: after GRPO
+    standard-deviation normalization it can otherwise become a large update.
+    Keep this opt-in so historical recipes retain their exact behavior.
+    """
+    labels = [str(getattr(sample, "label", "")) for sample in samples]
+    is_miu = bool(labels) and all(label.startswith("MIU:") for label in labels)
+    if not is_miu:
+        return 0.0
+    value = float(os.getenv("LOYAL_MIU_MIN_GROUP_REWARD_STD", "0"))
+    if value < 0:
+        raise ValueError("LOYAL_MIU_MIN_GROUP_REWARD_STD must be non-negative")
+    return value
+
+
 def keep_eligible_nonzero_std(args, samples, **kwargs):
-    """Discard groups affected by truncation/judge failure or with no GRPO signal."""
+    """Discard unusable groups and optionally retain zero-advantage GRPO groups.
+
+    Retaining a zero-variance group is useful when a fixed-size rollout batch
+    must be produced without replacement sampling.  Its centered GRPO
+    advantages are all zero, so it contributes no policy-gradient signal but
+    keeps the batch shape valid.  This is deliberately opt-in because the
+    default recipe prioritises informative groups over rollout throughput.
+    """
     rewards = [getattr(sample, "reward", None) for sample in samples]
     ineligible = [item for item in rewards if not isinstance(item, dict) or not item.get("training_eligible", False)]
     if ineligible:
@@ -126,9 +159,15 @@ def keep_eligible_nonzero_std(args, samples, **kwargs):
             _CONSECUTIVE_INFRASTRUCTURE_FAILURES = 0
         return DynamicFilterOutput(keep=False, reason=f"ineligible_{reason}")
     values = [float(item["reward_value"]) for item in rewards]
-    if len(set(values)) < 2:
+    reward_mean = sum(values) / len(values)
+    reward_std = (sum((value - reward_mean) ** 2 for value in values) / len(values)) ** 0.5
+    min_std = _miu_min_group_reward_std(samples)
+    if len(set(values)) < 2 or reward_std < min_std:
         _CONSECUTIVE_INFRASTRUCTURE_FAILURES = 0
-        reason = f"zero_std_{round(values[0], 2)}"
+        reason = f"zero_std_{round(values[0], 2)}" if len(set(values)) < 2 else f"low_std_{round(reward_std, 4)}"
+        if os.getenv("LOYAL_RETAIN_ZERO_STD_GROUPS", "0") == "1":
+            _log_group(samples, kept=True, reason=f"retained_{reason}", values=values)
+            return DynamicFilterOutput(keep=True)
         _log_group(samples, kept=False, reason=reason, values=values)
         return DynamicFilterOutput(keep=False, reason=reason)
     _CONSECUTIVE_INFRASTRUCTURE_FAILURES = 0
