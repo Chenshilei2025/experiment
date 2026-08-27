@@ -29,8 +29,10 @@ mkdir -p "${LOYAL_REASONING_OUTPUT_ROOT}"
 run_eval() {
   local name="$1"
   shift
-  if [[ ! -f "${1}" ]]; then
-    printf 'SKIP %s missing %s\n' "${name}" "${1}" >&2
+  local data_path="$1"
+  shift
+  if [[ ! -f "${data_path}" ]]; then
+    printf 'SKIP %s missing %s\n' "${name}" "${data_path}" >&2
     return 0
   fi
   python3 -m scripts.evaluation.eval_reasoning_benchmark "$@"
