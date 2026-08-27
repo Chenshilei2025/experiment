@@ -5,6 +5,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
+if [[ -d "${PROJECT_ROOT}/assets" ]]; then
+  ASSET_ROOT="${LOYAL_ASSET_ROOT:-${PROJECT_ROOT}/assets}"
+else
+  ASSET_ROOT="${LOYAL_ASSET_ROOT:-$(cd -- "${PROJECT_ROOT}/.." && pwd)/assets}"
+fi
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/env.sh"
 MECHANISM=creative
@@ -12,7 +17,7 @@ SLIME_ROOT="${SLIME_ROOT:-${PROJECT_ROOT}/slime}"
 DATA_ROOT="${LOYAL_DATA_ROOT:-${PROJECT_ROOT}/artifacts/slime/CREATIVE}"
 source "${SCRIPT_DIR}/model_profiles.sh"
 
-: "${LOYAL_CREATIVE_TRAIN_RECORDS:?set creative SFT parquet path, usually artifacts/slime/CREATIVE/train.parquet}"
+: "${LOYAL_CREATIVE_TRAIN_RECORDS:=}"
 : "${LOYAL_CREATIVE_TRAIN_GPU_COUNT:=2}"
 : "${LOYAL_CREATIVE_ROLLOUT_GPU_COUNT:=0}"
 : "${LOYAL_CREATIVE_RAY_NUM_GPUS:=${LOYAL_CREATIVE_TRAIN_GPU_COUNT}}"
@@ -29,6 +34,19 @@ source "${SCRIPT_DIR}/model_profiles.sh"
 : "${LOYAL_WANDB_PROJECT:=loyal-agent}"
 : "${LOYAL_WANDB_GROUP:=creative-${LOYAL_BASE_MODEL}-sft}"
 : "${LOYAL_WANDB_MODE:=online}"
+if [[ -z "${LOYAL_CREATIVE_TRAIN_RECORDS:-}" ]]; then
+  for candidate in \
+    "${ASSET_ROOT}/slime/CREATIVE/train.parquet" \
+    "${DATA_ROOT}/train.parquet" \
+    "${PROJECT_ROOT}/artifacts/slime/CREATIVE/train.parquet" \
+    "${PROJECT_ROOT}/artifacts/slime/creative/train.parquet"
+  do
+    if [[ -f "${candidate}" ]]; then
+      export LOYAL_CREATIVE_TRAIN_RECORDS="${candidate}"
+      break
+    fi
+  done
+fi
 [[ "${LOYAL_CREATIVE_TRAIN_GPU_COUNT}" -gt 0 ]] || { echo 'creative train GPU count must be positive' >&2; exit 2; }
 [[ "${LOYAL_CREATIVE_ROLLOUT_GPU_COUNT}" -eq 0 ]] || { echo 'creative SFT must not allocate rollout GPUs' >&2; exit 2; }
 [[ "${LOYAL_CREATIVE_RAY_NUM_GPUS}" -eq "${LOYAL_CREATIVE_TRAIN_GPU_COUNT}" ]] || { echo 'creative Ray GPU count must equal train GPU count' >&2; exit 2; }

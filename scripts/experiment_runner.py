@@ -1,7 +1,7 @@
 """Run reproducible multi-stage training experiments from a JSON config.
 
 The runner owns the mechanics shared by all training experiments: resolving a
-checkpoint name, preserving the exact config, recording dataset fingerprints,
+checkpoint name, preserving the exact config, recording dataset metadata,
 running stages, and writing a recoverable manifest.  Experiment directories
 should therefore contain conditions (JSON) and analysis, not another copy of
 the Docker-launch logic.
@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import argparse
 import copy
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -104,8 +103,18 @@ def _string_environment(values: Mapping[str, Any], label: str) -> dict[str, str]
     return result
 
 
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+def _file_signature(path: Path) -> dict[str, Any]:
+    """Record lightweight provenance without hashing user datasets."""
+    stat = path.stat()
+    result: dict[str, Any] = {
+        "path": str(path.resolve()),
+        "bytes": stat.st_size,
+        "mtime_unix": stat.st_mtime,
+    }
+    if path.suffix == ".jsonl":
+        with path.open(encoding="utf-8") as handle:
+            result["line_count"] = sum(1 for line in handle if line.strip())
+    return result
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -122,9 +131,9 @@ def _read_json(path: Path) -> dict[str, Any]:
     return value
 
 
-def _record_paths(stages: list[dict[str, Any]], environment: Mapping[str, str]) -> dict[str, str]:
-    """Fingerprint the canonical train split for each mechanism used by a run."""
-    paths: dict[str, str] = {}
+def _record_paths(stages: list[dict[str, Any]], environment: Mapping[str, str]) -> dict[str, dict[str, Any]]:
+    """Describe the canonical train split for each mechanism used by a run."""
+    paths: dict[str, dict[str, Any]] = {}
     for stage in stages:
         mechanism = stage["mechanism"]
         if mechanism == "creative":
@@ -136,23 +145,23 @@ def _record_paths(stages: list[dict[str, Any]], environment: Mapping[str, str]) 
                 path = PROJECT_ROOT / path
             if not path.is_file():
                 raise ValueError(f"creative training records do not exist: {path}")
-            paths[mechanism] = _sha256(path)
+            paths[mechanism] = _file_signature(path)
             continue
         if mechanism == "mixed":
             # The derived mixed file is created immediately before training, so
-            # fingerprint the two immutable source splits instead.
+            # Record the two immutable source splits instead.
             for source_mechanism in sorted(TRAINING_MECHANISMS):
                 path = PROJECT_ROOT / source_mechanism / "data" / "dataset" / f"{source_mechanism.upper()}-v2" / "train.jsonl"
                 if not path.is_file():
                     raise ValueError(f"training records for {source_mechanism} do not exist: {path}")
-                paths[source_mechanism] = _sha256(path)
+                paths[source_mechanism] = _file_signature(path)
             continue
         variable = f"LOYAL_{mechanism.upper()}_TRAIN_RECORDS"
         raw_path = environment.get(variable)
         path = Path(raw_path) if raw_path else PROJECT_ROOT / mechanism / "data" / "dataset" / f"{mechanism.upper()}-v2" / "train.jsonl"
         if not path.is_file():
             raise ValueError(f"training records for {mechanism} do not exist: {path}")
-        paths[mechanism] = _sha256(path)
+        paths[mechanism] = _file_signature(path)
     return paths
 
 
@@ -441,7 +450,7 @@ def _prepare_mixed_training_data(*, output_dir: Path, seed: int) -> tuple[Path, 
         seed=seed,
     )
     summary["path"] = str(path.resolve())
-    summary["sha256"] = _sha256(path)
+    summary["file"] = _file_signature(path)
     _write_json(output_dir / "mixed_training_data.json", summary)
     return path, summary
 
@@ -527,9 +536,9 @@ def run_config(config: dict[str, Any], *, output_dir: Path, run_name: str, confi
             "mixed_ablation": mixed_plan,
             "evaluations": {},
             "stages": [{"mechanism": item["mechanism"], "rollouts": item["rollouts"], "status": "pending"} for item in stages],
-            "training_records_sha256": _record_paths(stages, base_environment),
+            "training_records": _record_paths(stages, base_environment),
             "mixed_training_data": mixed_summary,
-            "config_sha256": _sha256(config_path) if config_path else None,
+            "config_file": _file_signature(config_path) if config_path else None,
             "started_at_unix": time.time(),
         }
     _write_json(output_dir / "manifest.json", manifest)

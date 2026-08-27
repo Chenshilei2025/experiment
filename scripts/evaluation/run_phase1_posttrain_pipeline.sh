@@ -4,6 +4,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
+if [[ -d "${PROJECT_ROOT}/assets" ]]; then
+  ASSET_ROOT="${LOYAL_ASSET_ROOT:-${PROJECT_ROOT}/assets}"
+else
+  ASSET_ROOT="${LOYAL_ASSET_ROOT:-$(cd -- "${PROJECT_ROOT}/.." && pwd)/assets}"
+fi
 
 CHECKPOINT_NAME="${LOYAL_PHASE1_CHECKPOINT_NAME:-mixed-v2-phase1-lambda050-e1m1-rollout160-phase1-seed1234}"
 CHECKPOINT_ROOT="${LOYAL_PHASE1_CHECKPOINT_ROOT:-${PROJECT_ROOT}/artifacts/checkpoints/${CHECKPOINT_NAME}}"
@@ -106,13 +111,19 @@ maybe_run_reasoning() {
     log "reasoning_skipped disabled"
     return 0
   fi
-  if [[ -z "${LOYAL_MATH_DATA:-}" || -z "${LOYAL_UGMATH_DATA:-}" || -z "${LOYAL_GPQA_DATA:-}" ]]; then
-    log "reasoning_skipped missing one of LOYAL_MATH_DATA, LOYAL_UGMATH_DATA, LOYAL_GPQA_DATA"
+  local math_data="${LOYAL_MATH_DATA:-${ASSET_ROOT}/datasets/math500/test.jsonl}"
+  local ugmath_data="${LOYAL_UGMATH_DATA:-}"
+  local gpqa_data="${LOYAL_GPQA_DATA:-}"
+  if [[ ! -f "${math_data}" && ! -f "${ugmath_data}" && ! -f "${gpqa_data}" ]]; then
+    log "reasoning_skipped missing all reasoning datasets"
     return 0
   fi
   local best_path
   best_path="$(best_checkpoint_path)"
   log "reasoning_start checkpoint=${best_path}"
+  LOYAL_MATH_DATA="${math_data}" \
+  LOYAL_UGMATH_DATA="${ugmath_data}" \
+  LOYAL_GPQA_DATA="${gpqa_data}" \
   LOYAL_REASONING_OUTPUT_ROOT="${POST_ROOT}/reasoning" \
     bash "${SCRIPT_DIR}/run_reasoning_benchmarks.sh" "${best_path}"
   log "reasoning_done output=${POST_ROOT}/reasoning"
