@@ -1,10 +1,25 @@
 import logging
 import os
+import secrets
 from copy import deepcopy
 
 import wandb
 
 logger = logging.getLogger(__name__)
+
+
+def _generate_wandb_run_suffix() -> str:
+    util = getattr(wandb, "util", None)
+    if util is not None and hasattr(util, "generate_id"):
+        return util.generate_id()
+    try:
+        from wandb.sdk.lib import runid
+
+        if hasattr(runid, "generate_id"):
+            return runid.generate_id()
+    except Exception:
+        pass
+    return secrets.token_hex(3)
 
 
 def _is_offline_mode(args) -> bool:
@@ -43,7 +58,7 @@ def init_wandb_primary(args):
     # Prepare wandb init parameters
     # add random 6 length string with characters
     if args.wandb_random_suffix:
-        group = args.wandb_group + "_" + wandb.util.generate_id()
+        group = args.wandb_group + "_" + _generate_wandb_run_suffix()
         run_name = f"{group}-RANK_{args.rank}"
     else:
         group = args.wandb_group
