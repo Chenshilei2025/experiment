@@ -66,7 +66,7 @@ if [[ "${LOYAL_USE_WANDB:-0}" == "1" ]]; then
   [[ -z "${WANDB_API_KEY:-}" ]] || export WANDB_API_KEY
   WANDB_ARGS=(--use-wandb --wandb-project "${LOYAL_WANDB_PROJECT}" --wandb-group "${LOYAL_WANDB_GROUP}" --wandb-mode "${LOYAL_WANDB_MODE}")
 fi
-MISC_ARGS=(--attention-dropout 0.0 --hidden-dropout 0.0 --no-gradient-accumulation-fusion --accumulate-allreduce-grads-in-fp32 --attention-softmax-in-fp32 --attention-backend flash --no-rope-fusion)
+MISC_ARGS=(--attention-dropout 0.0 --hidden-dropout 0.0 --no-gradient-accumulation-fusion --no-masked-softmax-fusion --accumulate-allreduce-grads-in-fp32 --attention-softmax-in-fp32 --attention-backend flash --no-rope-fusion)
 TRAIN_GPU_COUNT="${LOYAL_CREATIVE_TRAIN_GPU_COUNT}"; ROLLOUT_GPU_COUNT="${LOYAL_CREATIVE_ROLLOUT_GPU_COUNT}"; RAY_GPU_COUNT="${LOYAL_CREATIVE_RAY_NUM_GPUS}"
 RUNTIME_EXTRA=',"PYTORCH_CUDA_ALLOC_CONF":"expandable_segments:True"'
 source "${SCRIPT_DIR}/submit_training.sh"

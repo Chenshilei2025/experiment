@@ -119,7 +119,7 @@ if [[ "${LOYAL_USE_WANDB:-1}" == 1 ]]; then
     WANDB_ARGS+=(--wandb-run-id "${LOYAL_WANDB_RUN_ID}")
   fi
 fi
-MISC_ARGS=(--attention-dropout 0.0 --hidden-dropout 0.0 --no-gradient-accumulation-fusion --accumulate-allreduce-grads-in-fp32 --attention-softmax-in-fp32 --attention-backend flash --no-rope-fusion)
+MISC_ARGS=(--attention-dropout 0.0 --hidden-dropout 0.0 --no-gradient-accumulation-fusion --no-masked-softmax-fusion --accumulate-allreduce-grads-in-fp32 --attention-softmax-in-fp32 --attention-backend flash --no-rope-fusion)
 # Make scheduler replacement explicit on the command line when a checkpoint
 # resume intentionally changes LR.  The environment fallback in the backend
 # protects programmatic callers; this flag makes the training invocation
