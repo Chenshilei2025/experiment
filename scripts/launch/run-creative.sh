@@ -34,6 +34,7 @@ source "${SCRIPT_DIR}/model_profiles.sh"
 : "${LOYAL_WANDB_PROJECT:=loyal-agent}"
 : "${LOYAL_WANDB_GROUP:=creative-${LOYAL_BASE_MODEL}-sft}"
 : "${LOYAL_WANDB_MODE:=online}"
+: "${LOYAL_CREATIVE_BOOTSTRAP:=1}"
 if [[ -z "${LOYAL_CREATIVE_TRAIN_RECORDS:-}" ]]; then
   for candidate in \
     "${ASSET_ROOT}/slime/CREATIVE/train.parquet" \
@@ -46,6 +47,14 @@ if [[ -z "${LOYAL_CREATIVE_TRAIN_RECORDS:-}" ]]; then
       break
     fi
   done
+fi
+if [[ -z "${LOYAL_CREATIVE_TRAIN_RECORDS:-}" && "${LOYAL_CREATIVE_BOOTSTRAP}" == "1" ]]; then
+  mkdir -p "${DATA_ROOT}"
+  python3 "${PROJECT_ROOT}/scripts/data/bootstrap_creative_slime.py" \
+    --output "${DATA_ROOT}/train.parquet" \
+    --cache-root "${PROJECT_ROOT}/artifacts/cache/creative_sources" \
+    --seed "${LOYAL_CREATIVE_SEED:-42}"
+  export LOYAL_CREATIVE_TRAIN_RECORDS="${DATA_ROOT}/train.parquet"
 fi
 [[ "${LOYAL_CREATIVE_TRAIN_GPU_COUNT}" -gt 0 ]] || { echo 'creative train GPU count must be positive' >&2; exit 2; }
 [[ "${LOYAL_CREATIVE_ROLLOUT_GPU_COUNT}" -eq 0 ]] || { echo 'creative SFT must not allocate rollout GPUs' >&2; exit 2; }

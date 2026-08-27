@@ -18,6 +18,15 @@ class JudgeCircuitOpen(RuntimeError):
     """Stop a rollout before a down scorer causes unbounded replacement sampling."""
 
 
+def _judge_circuit_action() -> str:
+    action = os.getenv("LOYAL_JUDGE_CIRCUIT_ACTION", os.getenv("LOYAL_JUDGE_CIRCUIT_MODE", "raise")).lower()
+    if action == "drop":
+        action = "soft_keep"
+    if action not in {"raise", "soft_keep"}:
+        raise ValueError("LOYAL_JUDGE_CIRCUIT_ACTION must be 'raise' or 'soft_keep'")
+    return action
+
+
 def _diagnostics_path() -> Path:
     return Path(
         os.getenv(
@@ -139,7 +148,6 @@ def keep_eligible_nonzero_std(args, samples, **kwargs):
             for item in ineligible
         )
         reason = "+".join(f"{category}_{count}" for category, count in sorted(categories.items()))
-        _log_group(samples, kept=False, reason=f"ineligible_{reason}")
         global _CONSECUTIVE_INFRASTRUCTURE_FAILURES
         if len(ineligible) == len(samples) and all(
             isinstance(item, dict) and item.get("reward_category") in _INFRASTRUCTURE_FAILURE_CATEGORIES
@@ -150,6 +158,22 @@ def keep_eligible_nonzero_std(args, samples, **kwargs):
             if threshold < 1:
                 raise ValueError("LOYAL_JUDGE_CIRCUIT_FAILURE_THRESHOLD must be at least one")
             if _CONSECUTIVE_INFRASTRUCTURE_FAILURES >= threshold:
+                if _judge_circuit_action() == "soft_keep":
+                    _log_group(
+                        samples,
+                        kept=True,
+                        reason=(
+                            "judge_circuit_open_soft_keep_"
+                            f"{_CONSECUTIVE_INFRASTRUCTURE_FAILURES}_consecutive_infrastructure_failures"
+                        ),
+                    )
+                    return DynamicFilterOutput(
+                        keep=True,
+                        reason=(
+                            "judge_circuit_open_soft_keep_"
+                            f"{_CONSECUTIVE_INFRASTRUCTURE_FAILURES}_consecutive_infrastructure_failures"
+                        ),
+                    )
                 raise JudgeCircuitOpen(
                     "judge circuit open after "
                     f"{_CONSECUTIVE_INFRASTRUCTURE_FAILURES} consecutive all-group infrastructure failures; "
@@ -157,6 +181,7 @@ def keep_eligible_nonzero_std(args, samples, **kwargs):
                 )
         else:
             _CONSECUTIVE_INFRASTRUCTURE_FAILURES = 0
+        _log_group(samples, kept=False, reason=f"ineligible_{reason}")
         return DynamicFilterOutput(keep=False, reason=f"ineligible_{reason}")
     values = [float(item["reward_value"]) for item in rewards]
     reward_mean = sum(values) / len(values)

@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse
 import random
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Sequence
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -37,9 +37,14 @@ def _read_parquet_rows(path: Path) -> list[dict[str, Any]]:
     return pq.read_table(path).to_pylist()
 
 
+def _iter_parquet_rows(paths: Sequence[Path]) -> Iterable[dict[str, Any]]:
+    for path in paths:
+        yield from _read_parquet_rows(path)
+
+
 def _writingprompts_messages(row: dict[str, Any]) -> list[dict[str, str]] | None:
     prompt = _clean_text(row.get("prompt"))
-    story = _clean_text(row.get("story"))
+    story = _clean_text(row.get("story") or row.get("text") or row.get("response"))
     if not prompt or not story:
         return None
     return [
@@ -51,8 +56,13 @@ def _writingprompts_messages(row: dict[str, Any]) -> list[dict[str, str]] | None
 def _rocstories_messages(row: dict[str, Any]) -> list[dict[str, str]] | None:
     prompt = _clean_text(row.get("prompt"))
     continuation = _clean_text(row.get("continuation"))
+    sentences = [_clean_text(row.get(f"sentence{index}")) for index in range(1, 6)]
+    if not prompt and all(sentences[:4]):
+        prompt = " ".join(sentences[:4])
+    if not continuation and sentences[4]:
+        continuation = sentences[4]
     if not continuation:
-        text = _clean_text(row.get("text"))
+        text = _clean_text(row.get("text") or row.get("story"))
         if prompt and text.startswith(prompt):
             continuation = text[len(prompt):].strip()
         elif text:
@@ -75,8 +85,8 @@ def _limited(rows: Iterable[dict[str, Any]], limit: int | None) -> list[dict[str
 
 def build_creative_file(
     *,
-    writingprompts: Path | None,
-    rocstories: Path | None,
+    writingprompts: Path | Sequence[Path] | None,
+    rocstories: Path | Sequence[Path] | None,
     output: Path,
     seed: int,
     writingprompts_limit: int | None = None,
@@ -90,7 +100,8 @@ def build_creative_file(
     skipped = {"writingprompts": 0, "rocstories": 0}
     counts = {"writingprompts": 0, "rocstories": 0}
     if writingprompts is not None:
-        for row in _limited(_read_parquet_rows(writingprompts), writingprompts_limit):
+        sources = [writingprompts] if isinstance(writingprompts, Path) else list(writingprompts)
+        for row in _limited(_iter_parquet_rows(sources), writingprompts_limit):
             messages = _writingprompts_messages(row)
             if messages is None:
                 skipped["writingprompts"] += 1
@@ -98,7 +109,8 @@ def build_creative_file(
             rows.append({"dataset": "writingprompts", "messages": messages})
             counts["writingprompts"] += 1
     if rocstories is not None:
-        for row in _limited(_read_parquet_rows(rocstories), rocstories_limit):
+        sources = [rocstories] if isinstance(rocstories, Path) else list(rocstories)
+        for row in _limited(_iter_parquet_rows(sources), rocstories_limit):
             messages = _rocstories_messages(row)
             if messages is None:
                 skipped["rocstories"] += 1
