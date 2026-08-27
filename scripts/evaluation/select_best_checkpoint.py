@@ -34,7 +34,7 @@ def main() -> None:
     parser.add_argument("--root", type=Path, required=True, help="evaluation root containing per-step subdirectories")
     parser.add_argument("--steps", type=int, nargs="+", required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--pattern", default="reward_ablation_step{step}", help="subdirectory pattern under --root")
+    parser.add_argument("--pattern", default="step{step}", help="subdirectory pattern under --root")
     parser.add_argument("--min-miu-valid-rate", type=float, default=0.95)
     parser.add_argument("--max-eil-failure-rate", type=float, default=0.05)
     args = parser.parse_args()

@@ -6,12 +6,12 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
 
 PROJECT_ROOT="${LOYAL_DIRECT_EVAL_PROJECT_ROOT:-${REPO_ROOT}}"
-CHECKPOINT_NAME="${LOYAL_DIRECT_EVAL_CHECKPOINT_NAME:-mixed-v2-phase1-lambda075-e1m1-phase1-seed1234}"
+CHECKPOINT_NAME="${LOYAL_DIRECT_EVAL_CHECKPOINT_NAME:-mixed-v2-phase1-lambda050-e1m1-rollout160-phase1-seed1234}"
 CHECKPOINT_ROOT="${LOYAL_DIRECT_EVAL_CHECKPOINT_ROOT:-${PROJECT_ROOT}/artifacts/checkpoints/${CHECKPOINT_NAME}}"
 EXPORT_ROOT="${LOYAL_DIRECT_EVAL_EXPORT_ROOT:-${PROJECT_ROOT}/artifacts/exported_models/direct_checkpoint_eval}"
 EVAL_ROOT="${LOYAL_DIRECT_EVAL_OUTPUT_ROOT:-${PROJECT_ROOT}/artifacts/evaluations/direct_checkpoint_eval}"
 PYTHON="${LOYAL_PYTHON:-/root/experiment_g_runtime/conda/env/bin/python3}"
-STEPS="${LOYAL_DIRECT_EVAL_STEPS:-19 39 59 79 99 119 139}"
+STEPS="${LOYAL_DIRECT_EVAL_STEPS:-19 39 59 79 99 119 139 159}"
 LOG_FILE="${LOYAL_DIRECT_EVAL_LOG_FILE:-/tmp/direct_checkpoint_eval.log}"
 
 exec >>"${LOG_FILE}" 2>&1
@@ -100,7 +100,7 @@ PY
 }
 
 rewrite_metrics_table() {
-  "${PYTHON}" - "${EVAL_ROOT}" <<'PY'
+  "${PYTHON}" - "${EVAL_ROOT}" "${STEPS}" <<'PY'
 from __future__ import annotations
 import csv
 import json
@@ -108,6 +108,7 @@ from pathlib import Path
 import sys
 
 root = Path(sys.argv[1])
+steps = [int(item) for item in sys.argv[2].split()]
 fields = [
     "step",
     "miu_reward_mean",
@@ -123,7 +124,7 @@ fields = [
     "eil_n_failed",
 ]
 rows = []
-for step in [19, 39, 59, 79, 99, 119, 139]:
+for step in steps:
     step_dir = root / f"step{step}"
     miu_path = step_dir / "miu_final" / "summary.json"
     eil_path = step_dir / "eil_final" / "summary.json"
