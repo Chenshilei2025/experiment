@@ -8,6 +8,7 @@ MODEL_ARGS=(
    --group-query-attention
    --num-query-groups 8
    --use-rotary-position-embeddings
+   --no-persist-layer-norm
    --disable-bias-linear
    --normalization "RMSNorm"
    --norm-epsilon 1e-6
