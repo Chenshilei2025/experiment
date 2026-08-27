@@ -217,9 +217,9 @@ def forward_only(
         batch = get_batch(
             data_iterator, ["tokens", "total_lengths", "response_lengths"], args.data_pad_size_multiplier
         )
+        packed_seq_params = None if args.transformer_impl == "local" else batch["packed_seq_params"]
         unconcat_tokens = batch["unconcat_tokens"]
         tokens = batch["tokens"]
-        packed_seq_params = batch["packed_seq_params"]
         total_lengths = batch["total_lengths"]
         response_lengths = batch["response_lengths"]
         output_tensor = model(
@@ -411,7 +411,7 @@ def train_one_step(
                 position_ids=None,
                 attention_mask=None,
                 labels=None,
-                packed_seq_params=batch["packed_seq_params"],
+                packed_seq_params=None if args.transformer_impl == "local" else batch["packed_seq_params"],
             )
         else:
             # If enabling MTP training: trigger MTP loss inside Megatron while returning logits
@@ -431,7 +431,7 @@ def train_one_step(
                 position_ids=None,
                 attention_mask=None,
                 labels=None,
-                packed_seq_params=batch["packed_seq_params"],
+                packed_seq_params=None if args.transformer_impl == "local" else batch["packed_seq_params"],
                 loss_mask=loss_mask,
                 **(dict(mtp_kwargs=mtp_kwargs) if mtp_kwargs is not None else {}),
             )
