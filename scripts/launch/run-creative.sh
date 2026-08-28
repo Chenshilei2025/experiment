@@ -36,6 +36,7 @@ source "${SCRIPT_DIR}/model_profiles.sh"
 : "${LOYAL_WANDB_GROUP:=creative-${LOYAL_BASE_MODEL}-sft}"
 : "${LOYAL_WANDB_MODE:=online}"
 : "${LOYAL_CREATIVE_BOOTSTRAP:=1}"
+: "${LOYAL_CREATIVE_STRICT_RESUME:=1}"
 if [[ -z "${LOYAL_CREATIVE_TRAIN_RECORDS:-}" ]]; then
   for candidate in \
     "${ASSET_ROOT}/slime/CREATIVE/train.parquet" \
@@ -71,10 +72,23 @@ export LOYAL_CREATIVE_MIN_LR LOYAL_CREATIVE_LR_WARMUP_FRACTION LOYAL_CREATIVE_MA
 export LOYAL_USE_WANDB LOYAL_WANDB_PROJECT LOYAL_WANDB_GROUP LOYAL_WANDB_MODE
 "${PYTHON}" "${PROJECT_ROOT}/scripts/training/preflight.py" creative --runtime
 
+CREATIVE_LOAD="${LOYAL_CREATIVE_LOAD:-/root/${LOYAL_BASE_MODEL}_creative_slime}"
+CREATIVE_SAVE="${LOYAL_CREATIVE_SAVE:-/root/${LOYAL_BASE_MODEL}_creative_slime}"
+if [[ "${LOYAL_CREATIVE_STRICT_RESUME}" == "1" ]]; then
+  if [[ "${LOYAL_CREATIVE_NO_LOAD_OPTIM:-0}" == "1" || "${LOYAL_CREATIVE_NO_LOAD_RNG:-0}" == "1" ]]; then
+    echo "unsafe creative resume: refusing no-load optimizer/RNG under LOYAL_CREATIVE_STRICT_RESUME=1" >&2
+    exit 7
+  fi
+  if [[ ! -f "${CREATIVE_LOAD}/latest_checkpointed_iteration.txt" ]]; then
+    echo "unsafe creative resume: ${CREATIVE_LOAD} is not a Megatron checkpoint with latest_checkpointed_iteration.txt" >&2
+    exit 7
+  fi
+fi
+
 CKPT_ARGS=(
   --hf-checkpoint "${LOYAL_MODEL_HF_CHECKPOINT}" --ref-load "${LOYAL_MODEL_REF_LOAD}"
-  --load "${LOYAL_CREATIVE_LOAD:-/root/${LOYAL_BASE_MODEL}_creative_slime}"
-  --save "${LOYAL_CREATIVE_SAVE:-/root/${LOYAL_BASE_MODEL}_creative_slime}"
+  --load "${CREATIVE_LOAD}"
+  --save "${CREATIVE_SAVE}"
   --save-interval "${LOYAL_CREATIVE_SAVE_INTERVAL}"
   --save-retain-interval "${LOYAL_CREATIVE_SAVE_RETAIN_INTERVAL}"
 )
@@ -100,7 +114,7 @@ MISC_ARGS=(--attention-dropout 0.0 --hidden-dropout 0.0 --no-gradient-accumulati
 if [[ -n "${LOYAL_CREATIVE_CKPT_STEP:-}" ]]; then
   MISC_ARGS+=(--ckpt-step "${LOYAL_CREATIVE_CKPT_STEP}")
 fi
-if [[ "${LOYAL_CREATIVE_NO_LOAD_OPTIM:-1}" == "1" ]]; then
+if [[ "${LOYAL_CREATIVE_NO_LOAD_OPTIM:-0}" == "1" ]]; then
   MISC_ARGS+=(--no-load-optim --no-load-rng --finetune)
 fi
 TRAIN_GPU_COUNT="${LOYAL_CREATIVE_TRAIN_GPU_COUNT}"; ROLLOUT_GPU_COUNT="${LOYAL_CREATIVE_ROLLOUT_GPU_COUNT}"; RAY_GPU_COUNT="${LOYAL_CREATIVE_RAY_NUM_GPUS}"

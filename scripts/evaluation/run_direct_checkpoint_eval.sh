@@ -172,7 +172,7 @@ run_mechanism() {
   local out_root="${EVAL_ROOT}/step${step}/${mechanism}"
   local final_dir="${EVAL_ROOT}/step${step}/${mechanism}_final"
   local batch_size=8
-  local max_new_tokens=384
+  local max_new_tokens=1024
   [[ "${mechanism}" == "eil" ]] && batch_size=2 && max_new_tokens=2048
   if [[ -f "${final_dir}/summary.json" && -f "${final_dir}/per_sample.jsonl" ]]; then
     log "${mechanism}_final_skip step=${step}"

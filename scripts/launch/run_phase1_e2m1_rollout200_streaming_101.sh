@@ -34,6 +34,47 @@ checkpoint_complete() {
   [[ -s "${dir}/common.pt" && -f "${dir}/.metadata" ]]
 }
 
+assert_resume_safe() {
+  local step="$1"
+  local previous=$((step - 20))
+  local latest_file="${CHECKPOINT_ROOT}/latest_checkpointed_iteration.txt"
+  local latest
+  if [[ "${LOYAL_MIXED_NO_LOAD_OPTIM:-0}" == "1" || "${LOYAL_MIXED_NO_LOAD_RNG:-0}" == "1" ]]; then
+    log "ERROR unsafe_resume_state step=${step} reason=no_load_optimizer_or_rng"
+    exit 7
+  fi
+  if [[ "${LOYAL_OVERRIDE_OPT_PARAM_SCHEDULER:-0}" == "1" ]]; then
+    log "ERROR unsafe_resume_state step=${step} reason=override_opt_param_scheduler"
+    exit 7
+  fi
+  if [[ "${previous}" -lt 0 ]]; then
+    return 0
+  fi
+  if checkpoint_complete "${step}"; then
+    log "resume_guard_skip_completed step=${step}"
+    return 1
+  fi
+  if [[ ! -f "${latest_file}" ]]; then
+    log "ERROR unsafe_resume_state step=${step} reason=missing_latest_checkpoint latest_file=${latest_file}"
+    exit 7
+  fi
+  latest="$(<"${latest_file}")"
+  if [[ ! "${latest}" =~ ^[0-9]+$ ]]; then
+    log "ERROR unsafe_resume_state step=${step} reason=invalid_latest_checkpoint latest=${latest}"
+    exit 7
+  fi
+  if [[ "${latest}" -lt "${previous}" ]]; then
+    log "ERROR unsafe_resume_state step=${step} reason=latest_before_previous latest=${latest} expected_at_least=${previous}"
+    exit 7
+  fi
+  if ! checkpoint_complete "${previous}"; then
+    log "ERROR unsafe_resume_state step=${step} reason=previous_checkpoint_incomplete previous=${previous}"
+    exit 7
+  fi
+  log "resume_guard_ok step=${step} latest=${latest} previous=${previous}"
+  return 0
+}
+
 stop_ray() {
   "${PYTHON%/python3}/ray" stop --force >/tmp/ray_stop_${CONDITION}.log 2>&1 || ray stop --force >/tmp/ray_stop_${CONDITION}.log 2>&1 || true
 }
@@ -58,6 +99,9 @@ train_to_step() {
   local step="$1"
   local target=$((step + 1))
   local log_file="${RUN_DIR}/train_to_${step}.log"
+  if ! assert_resume_safe "${step}"; then
+    return 0
+  fi
   log "train_start target_rollout=${target} checkpoint=${CHECKPOINT_ROOT}"
   LOYAL_MIXED_NUM_ROLLOUT="${target}" \
   LOYAL_EXPERIMENT_RESUME=1 \
