@@ -492,6 +492,9 @@ def run_config(config: dict[str, Any], *, output_dir: Path, run_name: str, confi
         "LOYAL_TRAINING_SEED": str(config["seed"]),
         "LOYAL_ROLLOUT_SEED": str(config.get("rollout_seed", config["seed"])),
     })
+    checkpoint_host_root = base_environment.get("LOYAL_CHECKPOINT_HOST_ROOT")
+    if checkpoint_host_root and not base_environment.get("LOYAL_CHECKPOINT_HOST_DIR"):
+        base_environment["LOYAL_CHECKPOINT_HOST_DIR"] = str((Path(checkpoint_host_root) / checkpoint).resolve())
     mixed_stages = [stage for stage in stages if stage["mechanism"] == "mixed"]
     if mixed_stages:
         mixed_path = output_dir / "mixed_train.jsonl"
