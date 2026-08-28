@@ -158,7 +158,9 @@ for path in "${MODEL_ROOT}/Qwen3-4B" "${MODEL_ROOT}/Qwen3-4B_torch_dist"; do
 done
 
 cd "${PROJECT_ROOT}"
-"${PYTHON}" -m py_compile scripts/experiment_runner.py scripts/data/bootstrap_creative_slime.py scripts/data/bootstrap_reasoning_benchmarks.py
+"${PYTHON}" -m py_compile scripts/experiment_runner.py scripts/data/bootstrap_creative_slime.py \
+  scripts/data/bootstrap_reasoning_benchmarks.py scripts/evaluation/select_best_checkpoint.py \
+  scripts/evaluation/watch_phase1_metrics.py
 bash -n scripts/launch/run_training_host.sh scripts/launch/run-mixed.sh scripts/launch/run-creative.sh \
   scripts/evaluation/run_phase1_posttrain_pipeline.sh scripts/evaluation/run_direct_checkpoint_eval.sh scripts/evaluation/run_reasoning_benchmarks.sh
 "${PYTHON}" -m scripts.experiment_runner \
