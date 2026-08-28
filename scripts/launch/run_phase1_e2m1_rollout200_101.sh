@@ -22,7 +22,9 @@ LOG_FILE="${LOG_DIR}/${CONDITION}.log"
 POST_ROOT="${LOYAL_PHASE1_POST_ROOT:-${LOCAL_ROOT}/evaluations/${CONDITION}_posttrain}"
 CHECKPOINT_ROOT="${LOYAL_CHECKPOINT_HOST_ROOT:-${LOCAL_ROOT}/checkpoints}"
 CHECKPOINT_DIR="${CHECKPOINT_ROOT}/${CHECKPOINT_NAME}"
-RAY_TEMP_DIR="${LOYAL_RAY_TEMP_DIR:-${LOCAL_ROOT}/ray/${CONDITION}}"
+# Keep this short: Ray creates AF_UNIX sockets below the session directory and
+# Linux limits the full socket path to 107 bytes.
+RAY_TEMP_DIR="${LOYAL_RAY_TEMP_DIR:-/tmp/r101}"
 DATA_ROOT="${LOYAL_DATA_ROOT:-${LOCAL_ROOT}/slime_data/${CONDITION}}"
 WATCHER_LOG_FILE="${POST_ROOT}/metrics_watcher.log"
 ASSET_ROOT="${LOYAL_ASSET_ROOT:-/cephfs/shared/experiment_g/assets}"

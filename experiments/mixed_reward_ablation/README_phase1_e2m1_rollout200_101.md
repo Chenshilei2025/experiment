@@ -40,7 +40,7 @@ By default the active paths are on the host overlay disk, not CephFS:
 
 - Run root: `/tmp/experiment_g_longtask_101/experiments/mixed_reward_ablation_phase1_parallel`
 - Checkpoints: `/tmp/experiment_g_longtask_101/checkpoints`
-- Ray temp: `/tmp/experiment_g_longtask_101/ray/phase1-lambda050-e2m1-rollout200`
+- Ray temp: `/tmp/r101` (kept short to avoid Ray AF_UNIX socket path limits)
 - Post-train outputs: `/tmp/experiment_g_longtask_101/evaluations/phase1-lambda050-e2m1-rollout200_posttrain`
 
 ## Speed And Stability Choices
