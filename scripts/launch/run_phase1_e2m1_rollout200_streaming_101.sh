@@ -208,6 +208,9 @@ final_reasoning_and_creative() {
 
 main() {
   log "streaming_manager_start checkpoint=${CHECKPOINT_ROOT} run_dir=${RUN_DIR}"
+  log "runtime_patch_start path=${LOYAL_MEGATRON_ROOT:-/root/experiment_g_runtime/Megatron-LM}"
+  bash "${PROJECT_ROOT}/scripts/launch/patch_megatron_strict_resume.sh"
+  log "runtime_patch_done"
   if [[ ! -f "${RUN_DIR}/mixed_train.jsonl" ]]; then
     log "prepare_mixed_data_start"
     "${PYTHON}" "${PROJECT_ROOT}/scripts/data/prepare_mixed_slime.py" \
