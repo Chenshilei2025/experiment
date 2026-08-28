@@ -10,6 +10,7 @@ fi
 checkpoint="$1"
 project_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "${project_root}/scripts/launch/env.sh"
+PYTHON="${LOYAL_PYTHON:-/root/experiment_g_runtime/conda/env/bin/python3}"
 
 asset_root="${LOYAL_ASSET_ROOT:-}"
 if [[ -z "${asset_root}" ]]; then
@@ -23,6 +24,7 @@ fi
 : "${LOYAL_REASONING_OUTPUT_ROOT:=${project_root}/artifacts/evaluations/reasoning}"
 ugmath_data="${LOYAL_UGMATH_DATA:-}"
 gpqa_data="${LOYAL_GPQA_DATA:-}"
+require_all="${LOYAL_REASONING_REQUIRE_ALL:-1}"
 
 mkdir -p "${LOYAL_REASONING_OUTPUT_ROOT}"
 
@@ -31,11 +33,25 @@ run_eval() {
   shift
   local data_path="$1"
   shift
+  local output_dir="${LOYAL_REASONING_OUTPUT_ROOT}/${name}"
   if [[ ! -f "${data_path}" ]]; then
+    if [[ "${require_all}" == "1" ]]; then
+      printf 'ERROR %s dataset missing: %s\n' "${name}" "${data_path}" >&2
+      exit 3
+    fi
     printf 'SKIP %s missing %s\n' "${name}" "${data_path}" >&2
     return 0
   fi
-  python3 -m scripts.evaluation.eval_reasoning_benchmark "$@"
+  if [[ -f "${output_dir}/summary.json" && -f "${output_dir}/per_sample.jsonl" ]]; then
+    printf 'SKIP %s existing summary: %s\n' "${name}" "${output_dir}/summary.json" >&2
+    return 0
+  fi
+  if [[ -e "${output_dir}" ]]; then
+    local archived="${output_dir}.incomplete.$(date +%s)"
+    printf 'ARCHIVE %s incomplete output %s -> %s\n' "${name}" "${output_dir}" "${archived}" >&2
+    mv "${output_dir}" "${archived}"
+  fi
+  "${PYTHON}" -m scripts.evaluation.eval_reasoning_benchmark "$@"
 }
 
 run_eval math "${LOYAL_MATH_DATA}" \

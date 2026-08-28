@@ -15,6 +15,7 @@ source "${SCRIPT_DIR}/env.sh"
 MECHANISM=creative
 SLIME_ROOT="${SLIME_ROOT:-${PROJECT_ROOT}/slime}"
 DATA_ROOT="${LOYAL_DATA_ROOT:-${PROJECT_ROOT}/artifacts/slime/CREATIVE}"
+PYTHON="${LOYAL_PYTHON:-python3}"
 source "${SCRIPT_DIR}/model_profiles.sh"
 
 : "${LOYAL_CREATIVE_TRAIN_RECORDS:=}"
@@ -50,10 +51,12 @@ if [[ -z "${LOYAL_CREATIVE_TRAIN_RECORDS:-}" ]]; then
 fi
 if [[ -z "${LOYAL_CREATIVE_TRAIN_RECORDS:-}" && "${LOYAL_CREATIVE_BOOTSTRAP}" == "1" ]]; then
   mkdir -p "${DATA_ROOT}"
-  python3 "${PROJECT_ROOT}/scripts/data/bootstrap_creative_slime.py" \
+  "${PYTHON}" "${PROJECT_ROOT}/scripts/data/bootstrap_creative_slime.py" \
     --output "${DATA_ROOT}/train.parquet" \
     --cache-root "${PROJECT_ROOT}/artifacts/cache/creative_sources" \
-    --seed "${LOYAL_CREATIVE_SEED:-42}"
+    --seed "${LOYAL_CREATIVE_SEED:-42}" \
+    --writingprompts-limit "${LOYAL_CREATIVE_WRITINGPROMPTS_LIMIT:-512}" \
+    --rocstories-limit "${LOYAL_CREATIVE_ROCSTORIES_LIMIT:-512}"
   export LOYAL_CREATIVE_TRAIN_RECORDS="${DATA_ROOT}/train.parquet"
 fi
 [[ "${LOYAL_CREATIVE_TRAIN_GPU_COUNT}" -gt 0 ]] || { echo 'creative train GPU count must be positive' >&2; exit 2; }
@@ -66,7 +69,7 @@ export LOYAL_CREATIVE_ROLLOUT_BATCH_SIZE LOYAL_CREATIVE_GLOBAL_BATCH_SIZE LOYAL_
 export LOYAL_CREATIVE_SAVE_INTERVAL LOYAL_CREATIVE_SAVE_RETAIN_INTERVAL LOYAL_CREATIVE_LEARNING_RATE
 export LOYAL_CREATIVE_MIN_LR LOYAL_CREATIVE_LR_WARMUP_FRACTION LOYAL_CREATIVE_MAX_TOKENS_PER_GPU
 export LOYAL_USE_WANDB LOYAL_WANDB_PROJECT LOYAL_WANDB_GROUP LOYAL_WANDB_MODE
-python3 "${PROJECT_ROOT}/scripts/training/preflight.py" creative --runtime
+"${PYTHON}" "${PROJECT_ROOT}/scripts/training/preflight.py" creative --runtime
 
 CKPT_ARGS=(
   --hf-checkpoint "${LOYAL_MODEL_HF_CHECKPOINT}" --ref-load "${LOYAL_MODEL_REF_LOAD}"
@@ -94,6 +97,12 @@ if [[ "${LOYAL_USE_WANDB:-0}" == "1" ]]; then
   WANDB_ARGS=(--use-wandb --wandb-project "${LOYAL_WANDB_PROJECT}" --wandb-group "${LOYAL_WANDB_GROUP}" --wandb-mode "${LOYAL_WANDB_MODE}")
 fi
 MISC_ARGS=(--attention-dropout 0.0 --hidden-dropout 0.0 --no-gradient-accumulation-fusion --no-masked-softmax-fusion --accumulate-allreduce-grads-in-fp32 --attention-softmax-in-fp32 --attention-backend flash --no-rope-fusion)
+if [[ -n "${LOYAL_CREATIVE_CKPT_STEP:-}" ]]; then
+  MISC_ARGS+=(--ckpt-step "${LOYAL_CREATIVE_CKPT_STEP}")
+fi
+if [[ "${LOYAL_CREATIVE_NO_LOAD_OPTIM:-1}" == "1" ]]; then
+  MISC_ARGS+=(--no-load-optim --no-load-rng --finetune)
+fi
 TRAIN_GPU_COUNT="${LOYAL_CREATIVE_TRAIN_GPU_COUNT}"; ROLLOUT_GPU_COUNT="${LOYAL_CREATIVE_ROLLOUT_GPU_COUNT}"; RAY_GPU_COUNT="${LOYAL_CREATIVE_RAY_NUM_GPUS}"
 RUNTIME_EXTRA=',"PYTORCH_CUDA_ALLOC_CONF":"expandable_segments:True"'
 source "${SCRIPT_DIR}/submit_training.sh"

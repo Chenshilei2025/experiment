@@ -30,6 +30,9 @@ load_env() {
 }
 
 assert_no_training() {
+  if [[ "${LOYAL_ALLOW_TRAINING_PROCESS_DURING_DIRECT_EVAL:-0}" == "1" ]]; then
+    return 0
+  fi
   if ps -eo pid=,ppid=,args= | grep -E 'slime/train.py|scripts/launch/run-mixed.sh|watch_phase1_lambda075_to159' | grep -v grep >/tmp/direct_eval_train_guard.txt; then
     log "ERROR training_process_detected; refusing_to_start_eval"
     cat /tmp/direct_eval_train_guard.txt
@@ -45,6 +48,11 @@ export_step() {
   if [[ -f "${export_dir}/config.json" && -f "${export_dir}/model.safetensors.index.json" ]]; then
     log "export_skip step=${step} dir=${export_dir}"
     return 0
+  fi
+  if [[ -e "${export_dir}" ]]; then
+    local archived="${export_dir}.incomplete.$(date +%s)"
+    log "export_archive_incomplete step=${step} from=${export_dir} to=${archived}"
+    mv "${export_dir}" "${archived}"
   fi
   log "export_start step=${step}"
   LOYAL_CHECKPOINT_HOST_DIR="${CHECKPOINT_ROOT}" \
@@ -170,6 +178,11 @@ run_mechanism() {
     log "${mechanism}_final_skip step=${step}"
     return 0
   fi
+  if [[ -e "${final_dir}" ]]; then
+    local archived_final="${final_dir}.incomplete.$(date +%s)"
+    log "${mechanism}_final_archive_incomplete step=${step} from=${final_dir} to=${archived_final}"
+    mv "${final_dir}" "${archived_final}"
+  fi
   mkdir -p "${out_root}"
   local pids=()
   for shard in 0 1 2 3; do
@@ -177,6 +190,11 @@ run_mechanism() {
     if [[ -f "${shard_dir}/summary.json" && -f "${shard_dir}/per_sample.jsonl" ]]; then
       log "${mechanism}_shard_skip step=${step} shard=${shard}"
       continue
+    fi
+    if [[ -e "${shard_dir}" ]]; then
+      local archived_shard="${shard_dir}.incomplete.$(date +%s)"
+      log "${mechanism}_shard_archive_incomplete step=${step} shard=${shard} from=${shard_dir} to=${archived_shard}"
+      mv "${shard_dir}" "${archived_shard}"
     fi
     log "${mechanism}_shard_start step=${step} shard=${shard} gpu=${shard}"
     if [[ "${mechanism}" == "miu" ]]; then
@@ -207,6 +225,12 @@ run_mechanism() {
   aggregate_mechanism "${mechanism}" "${step}"
 }
 
+step_eval_complete() {
+  local step="$1"
+  [[ -f "${EVAL_ROOT}/step${step}/miu_final/summary.json" && -f "${EVAL_ROOT}/step${step}/miu_final/per_sample.jsonl" ]] || return 1
+  [[ -f "${EVAL_ROOT}/step${step}/eil_final/summary.json" && -f "${EVAL_ROOT}/step${step}/eil_final/per_sample.jsonl" ]] || return 1
+}
+
 main() {
   log "direct_checkpoint_eval_started pid=$$"
   assert_no_training
@@ -214,6 +238,11 @@ main() {
   mkdir -p "${EXPORT_ROOT}" "${EVAL_ROOT}"
   for step in ${STEPS}; do
     assert_no_training
+    if step_eval_complete "${step}"; then
+      log "step_skip_complete step=${step}"
+      rewrite_metrics_table
+      continue
+    fi
     log "step_start step=${step}"
     export_step "${step}"
     run_mechanism miu "${step}"

@@ -32,7 +32,7 @@ CHECKPOINT_ROOT="${LOYAL_CHECKPOINT_HOST_DIR:-${PROJECT_ROOT}/artifacts/checkpoi
 ITERATION="${2:-$(<"${CHECKPOINT_ROOT}/latest_checkpointed_iteration.txt")}"
 [[ "${ITERATION}" =~ ^[0-9]+$ ]] || { echo "checkpoint iteration must be numeric" >&2; exit 2; }
 INPUT_DIR="${CHECKPOINT_ROOT}/iter_$(printf '%07d' "${ITERATION}")"
-[[ -f "${INPUT_DIR}/common.pt" && -f "${INPUT_DIR}/.metadata" ]] || { echo "not a complete torch_dist checkpoint: ${INPUT_DIR}" >&2; exit 1; }
+[[ -s "${INPUT_DIR}/common.pt" && -f "${INPUT_DIR}/.metadata" ]] || { echo "not a complete torch_dist checkpoint: ${INPUT_DIR}" >&2; exit 1; }
 
 EXPORT_ROOT="${LOYAL_EXPORT_ROOT:-${PROJECT_ROOT}/artifacts/exported_models}"
 OUTPUT_DIR="${EXPORT_ROOT}/${CHECKPOINT_NAME}/iter_$(printf '%07d' "${ITERATION}")"

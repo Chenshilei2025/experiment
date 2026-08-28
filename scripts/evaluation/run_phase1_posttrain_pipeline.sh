@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Wait for phase-1 rollout160 training, then evaluate intermediate checkpoints.
+# Evaluate phase-1 intermediate checkpoints, select the best, then run
+# reasoning and creative-generation follow-up tests.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,13 +11,13 @@ else
   ASSET_ROOT="${LOYAL_ASSET_ROOT:-$(cd -- "${PROJECT_ROOT}/.." && pwd)/assets}"
 fi
 
-CHECKPOINT_NAME="${LOYAL_PHASE1_CHECKPOINT_NAME:-mixed-v2-phase1-lambda050-e1m1-rollout160-phase1-seed1234}"
+CHECKPOINT_NAME="${LOYAL_PHASE1_CHECKPOINT_NAME:-mixed-v2-phase1-lambda050-e2m1-rollout200-phase1-seed1234}"
 CHECKPOINT_HOST_ROOT="${LOYAL_CHECKPOINT_HOST_ROOT:-${PROJECT_ROOT}/artifacts/checkpoints}"
 CHECKPOINT_ROOT="${LOYAL_PHASE1_CHECKPOINT_ROOT:-${CHECKPOINT_HOST_ROOT}/${CHECKPOINT_NAME}}"
 RUN_DIR="${LOYAL_PHASE1_RUN_DIR:-}"
-STEPS="${LOYAL_PHASE1_EVAL_STEPS:-19 39 59 79 99 119 139 159}"
-FINAL_STEP="${LOYAL_PHASE1_FINAL_STEP:-159}"
-POST_ROOT="${LOYAL_PHASE1_POST_ROOT:-${PROJECT_ROOT}/artifacts/evaluations/phase1_rollout160_posttrain}"
+STEPS="${LOYAL_PHASE1_EVAL_STEPS:-19 39 59 79 99 119 139 159 179 199}"
+FINAL_STEP="${LOYAL_PHASE1_FINAL_STEP:-199}"
+POST_ROOT="${LOYAL_PHASE1_POST_ROOT:-${PROJECT_ROOT}/artifacts/evaluations/phase1_rollout200_posttrain}"
 WAIT_SECONDS="${LOYAL_PHASE1_WAIT_SECONDS:-300}"
 MAX_WAIT_SECONDS="${LOYAL_PHASE1_MAX_WAIT_SECONDS:-0}"
 LOG_FILE="${LOYAL_PHASE1_POST_LOG_FILE:-${POST_ROOT}/posttrain_pipeline.log}"

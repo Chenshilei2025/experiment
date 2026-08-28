@@ -8,11 +8,11 @@ PYTHON="${LOYAL_PYTHON:-python3}"
 
 CONDITION="${1:-${LOYAL_PHASE1_CONDITION:-}}"
 if [[ -z "${CONDITION}" ]]; then
-  echo "usage: $0 phase1-lambda025-e1m1|phase1-lambda050-e1m1|phase1-lambda050-e1m1-rollout160|phase1-lambda050-e2m1-rollout160|phase1-lambda075-e1m1" >&2
+  echo "usage: $0 phase1-lambda025-e1m1|phase1-lambda050-e1m1|phase1-lambda050-e1m1-rollout160|phase1-lambda050-e2m1-rollout160|phase1-lambda050-e2m1-rollout200|phase1-lambda075-e1m1" >&2
   exit 2
 fi
 case "${CONDITION}" in
-  phase1-lambda025-e1m1|phase1-lambda050-e1m1|phase1-lambda050-e1m1-rollout160|phase1-lambda050-e2m1-rollout160|phase1-lambda075-e1m1) ;;
+  phase1-lambda025-e1m1|phase1-lambda050-e1m1|phase1-lambda050-e1m1-rollout160|phase1-lambda050-e2m1-rollout160|phase1-lambda050-e2m1-rollout200|phase1-lambda075-e1m1) ;;
   *) echo "unsupported phase1 condition: ${CONDITION}" >&2; exit 2 ;;
 esac
 

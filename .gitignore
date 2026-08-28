@@ -7,6 +7,7 @@ checkpoints/
 
 # 忽略 Docker 的环境变量/密码文件 (非常重要！)
 .env
+.env.*
 lab1_tempadmin_id_rsa
 
 # 忽略挂载的数据集或日志

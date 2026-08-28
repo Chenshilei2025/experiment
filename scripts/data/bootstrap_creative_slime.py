@@ -33,6 +33,8 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--writingprompts-repo", default=DEFAULT_WRITINGPROMPTS_REPO)
     parser.add_argument("--rocstories-repo", default=DEFAULT_ROCSTORIES_REPO)
+    parser.add_argument("--writingprompts-limit", type=int, default=512)
+    parser.add_argument("--rocstories-limit", type=int, default=512)
     args = parser.parse_args()
 
     cache_root = args.cache_root
@@ -49,6 +51,8 @@ def main() -> None:
         rocstories=rocstories_files,
         output=args.output,
         seed=args.seed,
+        writingprompts_limit=args.writingprompts_limit,
+        rocstories_limit=args.rocstories_limit,
     )
     print(summary)
 
