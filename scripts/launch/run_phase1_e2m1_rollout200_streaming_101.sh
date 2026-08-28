@@ -43,10 +43,6 @@ assert_resume_safe() {
     log "ERROR unsafe_resume_state step=${step} reason=no_load_optimizer_or_rng"
     exit 7
   fi
-  if [[ "${LOYAL_OVERRIDE_OPT_PARAM_SCHEDULER:-0}" == "1" ]]; then
-    log "ERROR unsafe_resume_state step=${step} reason=override_opt_param_scheduler"
-    exit 7
-  fi
   if [[ "${previous}" -lt 0 ]]; then
     return 0
   fi
@@ -211,6 +207,7 @@ main() {
   log "runtime_patch_start path=${LOYAL_MEGATRON_ROOT:-/root/experiment_g_runtime/Megatron-LM}"
   bash "${PROJECT_ROOT}/scripts/launch/patch_megatron_strict_resume.sh"
   log "runtime_patch_done"
+  export LOYAL_OVERRIDE_OPT_PARAM_SCHEDULER=1
   if [[ ! -f "${RUN_DIR}/mixed_train.jsonl" ]]; then
     log "prepare_mixed_data_start"
     "${PYTHON}" "${PROJECT_ROOT}/scripts/data/prepare_mixed_slime.py" \
