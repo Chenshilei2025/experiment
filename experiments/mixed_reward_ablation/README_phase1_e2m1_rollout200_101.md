@@ -56,6 +56,9 @@ By default the active paths are on the host overlay disk, not CephFS:
   evaluated immediately before the next segment starts.
 - The GPU layout is fixed to `2 train + 2 rollout` for 4xA100.  `1+3` creates
   optimizer pressure; `3+1` bottlenecks rollout generation.
+- The EIL/MIU rollout schedule is computed against the full 200-rollout
+  horizon, even though training is restarted in 20-rollout segments for
+  immediate checkpoint testing.
 - The dynamic sampling filter is still active, but zero-variance eligible
   groups are retained by default through `LOYAL_RETAIN_ZERO_STD_GROUPS=1`.
   They keep batch shape stable and contribute zero GRPO advantage rather than

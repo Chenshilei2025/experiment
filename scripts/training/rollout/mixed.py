@@ -23,6 +23,15 @@ def _eil_batch_fraction() -> float:
     return value
 
 
+def _schedule_total_rollouts(args: Any) -> int:
+    """Use the full experiment horizon for ratio scheduling across restarts."""
+    raw = os.getenv("LOYAL_MIXED_SCHEDULE_TOTAL_ROLLOUTS")
+    value = int(raw) if raw else int(getattr(args, "num_rollout", 0))
+    if value < 1:
+        raise ValueError("mixed schedule total rollouts must be positive")
+    return value
+
+
 def _label_task(group: list[Any]) -> str:
     label = getattr(group[0], "label", None)
     if not isinstance(label, str) or ":" not in label:
@@ -68,7 +77,7 @@ def generate_rollout(args: Any, rollout_id: int, data_buffer: Any, evaluation: b
         rollout_id=rollout_id,
         seed=int(getattr(args, "rollout_seed", 0)),
         eil_probability=_eil_batch_fraction(),
-        total_rollouts=int(getattr(args, "num_rollout", 0)),
+        total_rollouts=_schedule_total_rollouts(args),
     )
     args.current_mixed_task = task
     source = _TaskSource(data_buffer.get_samples, task)
