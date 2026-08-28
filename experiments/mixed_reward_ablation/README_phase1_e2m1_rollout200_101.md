@@ -11,9 +11,12 @@ post-training pipeline on the 4xA100 host.
 - Training horizon: `200` rollouts, split as `10 x 20`.
 - Checkpoints: `19 39 59 79 99 119 139 159 179 199`.
 - Training-time eval: disabled.
-- Post-training pipeline: direct EIL/MIU checkpoint tests, best checkpoint
-  selection, MATH/UGMATH/GPQA, creative SFT on WritingPrompts/ROCStories, then
-  EIL/MIU re-evaluation.
+- Post-training pipeline: direct EIL/MIU checkpoint tests after every saved
+  checkpoint, best checkpoint selection, MATH/UGMATH/GPQA, creative SFT on
+  WritingPrompts/ROCStories, then EIL/MIU re-evaluation.
+- Best checkpoint score: average of MIU decision exact match, MIU reasoning
+  faithfulness, EIL task utility, and EIL low leakage (`1 - leakage_mean`),
+  with hard gates for MIU valid rate and EIL failure rate.
 
 ## Run
 
@@ -53,8 +56,17 @@ By default the active paths are on the host overlay disk, not CephFS:
   evaluated immediately before the next segment starts.
 - The GPU layout is fixed to `2 train + 2 rollout` for 4xA100.  `1+3` creates
   optimizer pressure; `3+1` bottlenecks rollout generation.
+- The dynamic sampling filter is still active, but zero-variance eligible
+  groups are retained by default through `LOYAL_RETAIN_ZERO_STD_GROUPS=1`.
+  They keep batch shape stable and contribute zero GRPO advantage rather than
+  being replacement-sampled indefinitely.
 - Old checkpoints are removed only after their EIL/MIU test summaries exist
-  and they are not the current best or one of the two most recent checkpoints.
+  with per-sample outputs, and they are not the current best or one of the two
+  most recent checkpoints.
+- A separate metrics watcher writes
+  `/tmp/experiment_g_longtask_101/evaluations/phase1-lambda050-e2m1-rollout200_posttrain/metrics_trend.json`
+  and `.csv` so the active best checkpoint, EIL/MIU reward deltas, and
+  per-step quality metric deltas are visible while training continues.
 
 ## Acceptance
 

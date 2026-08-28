@@ -24,6 +24,7 @@ CHECKPOINT_ROOT="${LOYAL_CHECKPOINT_HOST_ROOT:-${LOCAL_ROOT}/checkpoints}"
 CHECKPOINT_DIR="${CHECKPOINT_ROOT}/${CHECKPOINT_NAME}"
 RAY_TEMP_DIR="${LOYAL_RAY_TEMP_DIR:-${LOCAL_ROOT}/ray/${CONDITION}}"
 DATA_ROOT="${LOYAL_DATA_ROOT:-${LOCAL_ROOT}/slime_data/${CONDITION}}"
+WATCHER_LOG_FILE="${POST_ROOT}/metrics_watcher.log"
 ASSET_ROOT="${LOYAL_ASSET_ROOT:-/cephfs/shared/experiment_g/assets}"
 MODEL_ROOT="${LOYAL_MODEL_ROOT:-${ASSET_ROOT}/models}"
 PYTHON="${LOYAL_PYTHON:-/root/experiment_g_runtime/conda/env/bin/python3}"
@@ -189,9 +190,16 @@ fi
 nohup bash "${PROJECT_ROOT}/scripts/launch/run_phase1_e2m1_rollout200_streaming_101.sh" \
   >"${LOG_FILE}" 2>&1 &
 echo "$!" >"${LOG_DIR}/${CONDITION}.pid"
+nohup "${PYTHON}" -m scripts.evaluation.watch_phase1_metrics \
+  --post-root "${POST_ROOT}" \
+  --steps 19 39 59 79 99 119 139 159 179 199 \
+  --interval "${LOYAL_METRICS_WATCH_INTERVAL:-300}" \
+  >"${WATCHER_LOG_FILE}" 2>&1 &
+echo "$!" >"${LOG_DIR}/${CONDITION}.metrics_watcher.pid"
 
 echo "started condition=${CONDITION}"
 echo "manager_pid=$(cat "${LOG_DIR}/${CONDITION}.pid" 2>/dev/null || true)"
+echo "metrics_watcher_pid=$(cat "${LOG_DIR}/${CONDITION}.metrics_watcher.pid" 2>/dev/null || true)"
 echo "checkpoint_dir=${CHECKPOINT_DIR}"
 echo "run_dir=${RUN_DIR}"
 echo "post_root=${POST_ROOT}"
