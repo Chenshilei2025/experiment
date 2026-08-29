@@ -158,6 +158,50 @@ print(int(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))["best"]["ste
 PY
 }
 
+source_checkpoint_dir() {
+  local step="$1"
+  printf '%s/iter_%07d' "${CHECKPOINT_ROOT}" "${step}"
+}
+
+assert_best_checkpoint_strict_resume_ready() {
+  local step="$1"
+  local latest_file="${CHECKPOINT_ROOT}/latest_checkpointed_iteration.txt"
+  local iter_dir
+  iter_dir="$(source_checkpoint_dir "${step}")"
+  if [[ ! -f "${POST_ROOT}/best_checkpoint.json" ]]; then
+    log "ERROR unsafe_creative_resume reason=missing_best_checkpoint"
+    exit 7
+  fi
+  if [[ ! -f "${latest_file}" ]]; then
+    log "ERROR unsafe_creative_resume reason=missing_source_latest latest_file=${latest_file}"
+    exit 7
+  fi
+  local latest
+  latest="$(<"${latest_file}")"
+  if [[ ! "${latest}" =~ ^[0-9]+$ || "${latest}" -lt "${step}" ]]; then
+    log "ERROR unsafe_creative_resume reason=invalid_source_latest latest=${latest} best_step=${step}"
+    exit 7
+  fi
+  if [[ ! -s "${iter_dir}/common.pt" || ! -f "${iter_dir}/.metadata" ]]; then
+    log "ERROR unsafe_creative_resume reason=incomplete_best_checkpoint iter_dir=${iter_dir}"
+    exit 7
+  fi
+  "${PYTHON}" - "${POST_ROOT}/best_checkpoint.json" "${step}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+best = payload.get("best", {})
+step = int(sys.argv[2])
+if int(best.get("step", -1)) != step:
+    raise SystemExit(f"best step changed while preparing creative resume: {best.get('step')} != {step}")
+if not best.get("eligible"):
+    raise SystemExit("refusing creative resume from ineligible best checkpoint")
+PY
+  log "strict_creative_resume_source_ok checkpoint_root=${CHECKPOINT_ROOT} step=${step} iter_dir=${iter_dir}"
+}
+
 bootstrap_reasoning_data() {
   if [[ "${LOYAL_PHASE1_BOOTSTRAP_REASONING:-1}" != "1" ]]; then
     return 0
@@ -213,6 +257,7 @@ run_creative_sft() {
   fi
   local best_step
   best_step="$(best_checkpoint_step)"
+  assert_best_checkpoint_strict_resume_ready "${best_step}"
   if creative_checkpoint_ready; then
     log "creative_sft_skip checkpoint_root=${CREATIVE_CHECKPOINT_ROOT}"
     return 0
@@ -222,7 +267,25 @@ run_creative_sft() {
     log "creative_sft_archive_incomplete from=${CREATIVE_CHECKPOINT_ROOT} to=${archived}"
     mv "${CREATIVE_CHECKPOINT_ROOT}" "${archived}"
   fi
-  log "creative_sft_start source_checkpoint=${CHECKPOINT_ROOT} source_step=${best_step} save=${CREATIVE_CHECKPOINT_ROOT}"
+  mkdir -p "${CREATIVE_CHECKPOINT_ROOT}"
+  "${PYTHON}" - "${POST_ROOT}/creative_resume_source.json" "${CHECKPOINT_ROOT}" "${best_step}" "${CREATIVE_CHECKPOINT_ROOT}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+payload = {
+    "source_checkpoint_root": sys.argv[2],
+    "source_step": int(sys.argv[3]),
+    "creative_checkpoint_root": sys.argv[4],
+    "strict_resume": True,
+    "loads_optimizer": True,
+    "loads_rng": True,
+    "uses_checkpoint_opt_param_scheduler": True,
+}
+path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+  log "creative_sft_start source_checkpoint=${CHECKPOINT_ROOT} source_step=${best_step} save=${CREATIVE_CHECKPOINT_ROOT} strict_resume=1"
   LOYAL_USE_WANDB="${LOYAL_CREATIVE_USE_WANDB:-0}" \
   LOYAL_BASE_MODEL="${LOYAL_BASE_MODEL:-qwen3-4b}" \
   LOYAL_SHARED_CHECKPOINT_NAME="${CREATIVE_CHECKPOINT_NAME}" \
@@ -233,6 +296,7 @@ run_creative_sft() {
   LOYAL_CREATIVE_STRICT_RESUME=1 \
   LOYAL_CREATIVE_NO_LOAD_OPTIM=0 \
   LOYAL_CREATIVE_NO_LOAD_RNG=0 \
+  LOYAL_CREATIVE_USE_CHECKPOINT_OPT_PARAM_SCHEDULER=1 \
   LOYAL_CREATIVE_TRAIN_GPU_DEVICES="${LOYAL_PHASE1_CREATIVE_GPUS:-0,1}" \
   LOYAL_CREATIVE_TRAIN_GPU_COUNT="${LOYAL_PHASE1_CREATIVE_TRAIN_GPU_COUNT:-2}" \
   LOYAL_CREATIVE_RAY_NUM_GPUS="${LOYAL_PHASE1_CREATIVE_TRAIN_GPU_COUNT:-2}" \
@@ -345,6 +409,17 @@ for name in ("math", "ugmath", "gpqa"):
         errors.append(f"empty reasoning summary: {name}")
 
 if creative_enabled:
+    source_path = post_root / "creative_resume_source.json"
+    if not source_path.is_file():
+        errors.append("missing creative strict resume source metadata")
+    else:
+        source = json.loads(source_path.read_text(encoding="utf-8"))
+        if not source.get("strict_resume"):
+            errors.append("creative stage was not marked strict resume")
+        if not source.get("loads_optimizer") or not source.get("loads_rng"):
+            errors.append("creative stage did not preserve optimizer/RNG state")
+        if not source.get("uses_checkpoint_opt_param_scheduler"):
+            errors.append("creative stage did not preserve checkpoint opt-param scheduler")
     latest = creative_root / "latest_checkpointed_iteration.txt"
     if not latest.is_file():
         errors.append("missing creative latest checkpoint")

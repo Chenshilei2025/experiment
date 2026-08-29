@@ -114,6 +114,9 @@ MISC_ARGS=(--attention-dropout 0.0 --hidden-dropout 0.0 --no-gradient-accumulati
 if [[ -n "${LOYAL_CREATIVE_CKPT_STEP:-}" ]]; then
   MISC_ARGS+=(--ckpt-step "${LOYAL_CREATIVE_CKPT_STEP}")
 fi
+if [[ "${LOYAL_CREATIVE_USE_CHECKPOINT_OPT_PARAM_SCHEDULER:-1}" == "1" ]]; then
+  MISC_ARGS+=(--use-checkpoint-opt_param-scheduler)
+fi
 if [[ "${LOYAL_CREATIVE_NO_LOAD_OPTIM:-0}" == "1" ]]; then
   MISC_ARGS+=(--no-load-optim --no-load-rng --finetune)
 fi

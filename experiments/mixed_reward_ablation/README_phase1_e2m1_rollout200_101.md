@@ -66,6 +66,11 @@ By default the active paths are on the host overlay disk, not CephFS:
 - Old checkpoints are removed only after their EIL/MIU test summaries exist
   with per-sample outputs, and they are not the current best or one of the two
   most recent checkpoints.
+- The creative-generation stage is a strict checkpoint continuation from the
+  selected best phase-1 step.  It passes `--ckpt-step <best_step>`, refuses
+  `--no-load-optim/--no-load-rng/--finetune`, and keeps
+  `--use-checkpoint-opt_param-scheduler` so optimizer moments, RNG, scheduler,
+  and global step are carried across the stage boundary.
 - A separate metrics watcher writes
   `/tmp/experiment_g_longtask_101/evaluations/phase1-lambda050-e2m1-rollout200_posttrain/metrics_trend.json`
   and `.csv` so the active best checkpoint, EIL/MIU reward deltas, and
