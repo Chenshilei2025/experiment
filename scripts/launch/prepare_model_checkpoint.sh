@@ -59,6 +59,7 @@ run_host_conversion() {
     LOCAL_RANK="${LOCAL_RANK:-0}" \
     python3 "${SLIME_ROOT}/tools/convert_hf_to_torch_dist.py" \
       "${MODEL_ARGS[@]}" \
+      --no-gradient-accumulation-fusion \
       --hf-checkpoint "${LOYAL_MODEL_HF_CHECKPOINT}" \
       --save "${LOYAL_MODEL_REF_LOAD}"
 }
@@ -84,5 +85,6 @@ docker run --rm --gpus all --network host --ipc host --shm-size=16g --entrypoint
     fi
     PYTHONPATH=/root/Megatron-LM python3 tools/convert_hf_to_torch_dist.py \
       "${MODEL_ARGS[@]}" \
+      --no-gradient-accumulation-fusion \
       --hf-checkpoint "${LOYAL_MODEL_HF_CHECKPOINT}" \
       --save "${LOYAL_MODEL_REF_LOAD}"'
