@@ -15,6 +15,8 @@ RUN_DIR="${LOYAL_PHASE1_RUN_DIR:?set run dir}"
 POST_ROOT="${LOYAL_PHASE1_POST_ROOT:?set post root}"
 STEPS=(19 39 59 79 99 119 139 159 179 199)
 KEEP_RECENT="${LOYAL_CHECKPOINT_KEEP_RECENT:-2}"
+CHECKPOINT_WAIT_SECONDS="${LOYAL_CHECKPOINT_WAIT_SECONDS:-60}"
+CHECKPOINT_WAIT_MAX_SECONDS="${LOYAL_CHECKPOINT_WAIT_MAX_SECONDS:-7200}"
 
 mkdir -p "${RUN_DIR}" "${POST_ROOT}/checkpoint_eval" "${POST_ROOT}/exported_models"
 exec >>"${POST_ROOT}/streaming_manager.log" 2>&1
@@ -95,12 +97,12 @@ wait_for_checkpoint() {
   while ! checkpoint_complete "${step}"; do
     now="$(date +%s)"
     elapsed=$((now - started))
-    if [[ "${LOYAL_CHECKPOINT_WAIT_MAX_SECONDS:-7200}" -gt 0 && "${elapsed}" -ge "${LOYAL_CHECKPOINT_WAIT_MAX_SECONDS}" ]]; then
+    if [[ "${CHECKPOINT_WAIT_MAX_SECONDS}" -gt 0 && "${elapsed}" -ge "${CHECKPOINT_WAIT_MAX_SECONDS}" ]]; then
       log "ERROR checkpoint_timeout step=${step} elapsed=${elapsed}"
       exit 5
     fi
     log "waiting_checkpoint step=${step} elapsed=${elapsed}"
-    sleep "${LOYAL_CHECKPOINT_WAIT_SECONDS:-60}"
+    sleep "${CHECKPOINT_WAIT_SECONDS}"
   done
 }
 
