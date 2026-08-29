@@ -36,6 +36,19 @@ checkpoint_complete() {
   [[ -s "${dir}/common.pt" && -f "${dir}/.metadata" ]]
 }
 
+latest_checkpointed_step() {
+  local latest_file="${CHECKPOINT_ROOT}/latest_checkpointed_iteration.txt"
+  local latest=""
+  if [[ -f "${latest_file}" ]]; then
+    latest="$(tr -d '[:space:]' <"${latest_file}")"
+    if [[ "${latest}" =~ ^[0-9]+$ ]]; then
+      printf '%s' "${latest}"
+      return 0
+    fi
+  fi
+  printf ''
+}
+
 active_mixed_lr() {
   local override_file="${LOYAL_MIXED_LEARNING_RATE_FILE:-}"
   local override_value=""
@@ -235,6 +248,11 @@ main() {
   export LOYAL_MIU_RECORDS="${PROJECT_ROOT}/miu/data/dataset/MIU-v2/train.jsonl:${PROJECT_ROOT}/miu/data/dataset/MIU-v2/val.jsonl"
   export LOYAL_EIL_RECORDS="${PROJECT_ROOT}/eil/data/dataset/EIL-v2/train.jsonl:${PROJECT_ROOT}/eil/data/dataset/EIL-v2/val.jsonl"
   for step in "${STEPS[@]}"; do
+    local_latest="$(latest_checkpointed_step)"
+    if [[ -n "${local_latest}" && "${step}" -le "${local_latest}" ]]; then
+      log "resume_skip step=${step} latest=${local_latest}"
+      continue
+    fi
     train_to_step "${step}"
     eval_step "${step}"
     select_best_so_far
