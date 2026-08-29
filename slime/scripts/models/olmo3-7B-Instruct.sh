@@ -21,5 +21,6 @@ MODEL_ARGS=(
    --post-mlp-layernorm
    --use-rope-scaling
    --rotary-scaling-factor 8.0
+   --no-rope-fusion
    --untie-embeddings-and-output-weights
 )
