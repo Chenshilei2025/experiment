@@ -71,6 +71,9 @@ resolve_learning_rate() {
   local fallback="${LOYAL_MIXED_LEARNING_RATE:-7.5e-7}"
   local override_file="${LOYAL_MIXED_LEARNING_RATE_FILE:-}"
   local override_value=""
+  if [[ -z "${override_file}" && -n "${LOYAL_PHASE1_POST_ROOT:-}" ]]; then
+    override_file="${LOYAL_PHASE1_POST_ROOT}/phase1_next_lr.txt"
+  fi
   if [[ -n "${override_file}" && -f "${override_file}" ]]; then
     override_value="$(tr -d '[:space:]' <"${override_file}")"
   fi
