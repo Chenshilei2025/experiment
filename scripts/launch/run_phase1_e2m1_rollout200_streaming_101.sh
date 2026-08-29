@@ -43,12 +43,12 @@ assert_resume_safe() {
     log "ERROR unsafe_resume_state step=${step} reason=no_load_optimizer_or_rng"
     exit 7
   fi
-  if [[ "${previous}" -lt 0 ]]; then
-    return 0
-  fi
   if checkpoint_complete "${step}"; then
     log "resume_guard_skip_completed step=${step}"
     return 1
+  fi
+  if [[ "${previous}" -lt 0 ]]; then
+    return 0
   fi
   if [[ ! -f "${latest_file}" ]]; then
     log "ERROR unsafe_resume_state step=${step} reason=missing_latest_checkpoint latest_file=${latest_file}"

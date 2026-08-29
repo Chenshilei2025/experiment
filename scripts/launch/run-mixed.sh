@@ -135,7 +135,7 @@ MISC_ARGS=(--attention-dropout 0.0 --hidden-dropout 0.0 --no-gradient-accumulati
 # auditable and lets Megatron accept the new scheduler value while retaining
 # optimizer moments.
 if [[ "${LOYAL_OVERRIDE_OPT_PARAM_SCHEDULER:-0}" == "1" ]]; then
-  MISC_ARGS+=(--override-opt-param-scheduler)
+  MISC_ARGS+=(--override-opt_param-scheduler)
 fi
 # Force an explicit checkpoint iteration when resuming a batch-size-change
 # experiment.  This avoids relying on a stale/incorrect tracker read.
