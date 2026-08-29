@@ -34,6 +34,19 @@ checkpoint_complete() {
   [[ -s "${dir}/common.pt" && -f "${dir}/.metadata" ]]
 }
 
+active_mixed_lr() {
+  local override_file="${LOYAL_MIXED_LEARNING_RATE_FILE:-}"
+  local override_value=""
+  if [[ -n "${override_file}" && -f "${override_file}" ]]; then
+    override_value="$(tr -d '[:space:]' <"${override_file}")"
+  fi
+  if [[ -n "${override_value}" ]]; then
+    printf '%s' "${override_value}"
+  else
+    printf '%s' "${LOYAL_MIXED_LEARNING_RATE:-unset}"
+  fi
+}
+
 assert_resume_safe() {
   local step="$1"
   local previous=$((step - 20))
@@ -98,7 +111,7 @@ train_to_step() {
   if ! assert_resume_safe "${step}"; then
     return 0
   fi
-  log "train_start target_rollout=${target} checkpoint=${CHECKPOINT_ROOT}"
+  log "train_start target_rollout=${target} checkpoint=${CHECKPOINT_ROOT} lr=$(active_mixed_lr)"
   LOYAL_MIXED_NUM_ROLLOUT="${target}" \
   LOYAL_EXPERIMENT_RESUME=1 \
     bash "${PROJECT_ROOT}/scripts/launch/run_training_host.sh" mixed \

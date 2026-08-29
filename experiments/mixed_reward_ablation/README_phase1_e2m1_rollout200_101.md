@@ -54,6 +54,10 @@ By default the active paths are on the host overlay disk, not CephFS:
 - The safe speedups are operational: active checkpoint/output/Ray/data paths
   are local, training-time eval is disabled, and each 20-rollout segment is
   evaluated immediately before the next segment starts.
+- If we need to change learning rate after the next completed checkpoint, set
+  `/tmp/experiment_g_longtask_101/evaluations/phase1-lambda050-e2m1-rollout200_posttrain/phase1_next_lr.txt`
+  to the new value before relaunching the next segment.  The launcher reads
+  that file on each restart, so the current in-flight segment stays untouched.
 - The GPU layout is fixed to `2 train + 2 rollout` for 4xA100.  `1+3` creates
   optimizer pressure; `3+1` bottlenecks rollout generation.
 - The EIL/MIU rollout schedule is computed against the full 200-rollout

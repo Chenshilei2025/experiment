@@ -67,6 +67,20 @@ export LOYAL_EIL_ADVERSARY_TEMPERATURES="${LOYAL_EIL_ADVERSARY_TEMPERATURES:-0.3
 export LOYAL_REWARD_FAILURE_LOG="${LOYAL_MIXED_FAILURE_LOG:-${PROJECT_ROOT}/artifacts/diagnostics/mixed_groups.jsonl}"
 export LOYAL_MIXED_EIL_BATCH_FRACTION
 
+resolve_learning_rate() {
+  local fallback="${LOYAL_MIXED_LEARNING_RATE:-7.5e-7}"
+  local override_file="${LOYAL_MIXED_LEARNING_RATE_FILE:-}"
+  local override_value=""
+  if [[ -n "${override_file}" && -f "${override_file}" ]]; then
+    override_value="$(tr -d '[:space:]' <"${override_file}")"
+  fi
+  if [[ -n "${override_value}" ]]; then
+    printf '%s' "${override_value}"
+  else
+    printf '%s' "${fallback}"
+  fi
+}
+
 MIXED_EVAL_ROOT="${DATA_ROOT}/eval"
 if [[ "${LOYAL_MIXED_ENABLE_EVAL:-0}" == "1" ]]; then
   mkdir -p "${MIXED_EVAL_ROOT}"
@@ -81,7 +95,7 @@ fi
 CKPT_ARGS=(--hf-checkpoint "${LOYAL_MODEL_HF_CHECKPOINT}" --ref-load "${LOYAL_MODEL_REF_LOAD}" --load "${LOYAL_MIXED_LOAD}" --save "${LOYAL_MIXED_SAVE}" --save-interval "${LOYAL_MIXED_SAVE_INTERVAL}")
 ROLLOUT_ARGS=(--prompt-data "${LOYAL_MIXED_TRAIN_RECORDS}" --input-key messages --label-key record_id --apply-chat-template --apply-chat-template-kwargs "${LOYAL_MODEL_CHAT_TEMPLATE_KWARGS}" --rollout-function-path scripts.training.rollout.mixed.generate_rollout --rollout-shuffle --rollout-batch-size "${LOYAL_MIXED_ROLLOUT_BATCH_SIZE}" --n-samples-per-prompt "${LOYAL_MIXED_SAMPLES_PER_PROMPT}" --rollout-max-response-len "${LOYAL_MIXED_MAX_RESPONSE_LEN}" --rollout-temperature 0.8 --global-batch-size "${LOYAL_MIXED_GLOBAL_BATCH_SIZE}" --balance-data --rollout-seed "${LOYAL_ROLLOUT_SEED:-42}" --num-rollout "${LOYAL_MIXED_NUM_ROLLOUT}")
 RM_ARGS=(--custom-rm-path scripts.training.rewards.slime.mixed_reward_func --custom-reward-post-process-path scripts.training.rewards.slime.mixed_post_process_rewards --reward-key reward_value --eval-reward-key reward_value --group-rm --dynamic-sampling-filter-path scripts.training.rewards.filters.keep_eligible_nonzero_std --log-reward-category reward_category)
-OPTIMIZER_ARGS=(--optimizer adam --lr "${LOYAL_MIXED_LEARNING_RATE:-7.5e-7}" --lr-decay-style constant --weight-decay 0.1 --adam-beta1 0.9 --adam-beta2 0.98 --clip-grad 1.0)
+OPTIMIZER_ARGS=(--optimizer adam --lr "$(resolve_learning_rate)" --lr-decay-style constant --weight-decay 0.1 --adam-beta1 0.9 --adam-beta2 0.98 --clip-grad 1.0)
 if [[ "${LOYAL_MIXED_OPTIMIZER_CPU_OFFLOAD:-0}" == "1" ]]; then
   # A single training GPU cannot hold Adam states, model buffers, and the
   # initial Megatron→SGLang weight-transfer workspace simultaneously.
