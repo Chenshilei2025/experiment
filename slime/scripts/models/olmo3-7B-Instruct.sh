@@ -16,6 +16,7 @@ MODEL_ARGS=(
    --vocab-size 100278
    --kv-channels 128
    --qk-layernorm
+   --no-persist-layer-norm
    --post-self-attn-layernorm
    --post-mlp-layernorm
    --use-rope-scaling
