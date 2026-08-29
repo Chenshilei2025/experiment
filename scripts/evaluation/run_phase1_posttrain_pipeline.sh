@@ -64,13 +64,38 @@ final_checkpoint_ready() {
 }
 
 creative_checkpoint_ready() {
+  local expected_source_step="$1"
   local latest="${CREATIVE_CHECKPOINT_ROOT}/latest_checkpointed_iteration.txt"
   [[ -f "${latest}" ]] || return 1
   local iteration
   iteration="$(<"${latest}")"
   [[ "${iteration}" =~ ^[0-9]+$ ]] || return 1
   local iter_dir="${CREATIVE_CHECKPOINT_ROOT}/iter_$(printf '%07d' "${iteration}")"
-  [[ -f "${iter_dir}/common.pt" && -f "${iter_dir}/.metadata" ]]
+  [[ -f "${iter_dir}/common.pt" && -f "${iter_dir}/.metadata" ]] || return 1
+  local source_path="${POST_ROOT}/creative_resume_source.json"
+  [[ -f "${source_path}" ]] || return 1
+  "${PYTHON}" - "${source_path}" "${CHECKPOINT_ROOT}" "${expected_source_step}" "${CREATIVE_CHECKPOINT_ROOT}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+source = json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))
+checkpoint_root = sys.argv[2]
+source_step = int(sys.argv[3])
+creative_root = sys.argv[4]
+if source.get('source_checkpoint_root') != checkpoint_root:
+    raise SystemExit(1)
+if int(source.get('source_step', -1)) != source_step:
+    raise SystemExit(1)
+if source.get('creative_checkpoint_root') != creative_root:
+    raise SystemExit(1)
+if not source.get('strict_resume'):
+    raise SystemExit(1)
+if not source.get('loads_optimizer') or not source.get('loads_rng'):
+    raise SystemExit(1)
+if not source.get('uses_checkpoint_opt_param_scheduler'):
+    raise SystemExit(1)
+PY
 }
 
 manifest_completed() {
@@ -258,8 +283,8 @@ run_creative_sft() {
   local best_step
   best_step="$(best_checkpoint_step)"
   assert_best_checkpoint_strict_resume_ready "${best_step}"
-  if creative_checkpoint_ready; then
-    log "creative_sft_skip checkpoint_root=${CREATIVE_CHECKPOINT_ROOT}"
+  if creative_checkpoint_ready "${best_step}"; then
+    log "creative_sft_skip checkpoint_root=${CREATIVE_CHECKPOINT_ROOT} source_step=${best_step}"
     return 0
   fi
   if [[ -e "${CREATIVE_CHECKPOINT_ROOT}" ]]; then
