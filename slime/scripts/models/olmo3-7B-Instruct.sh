@@ -14,6 +14,7 @@ MODEL_ARGS=(
    --norm-epsilon 1e-5
    --rotary-base 500000
    --vocab-size 100278
+   --make-vocab-size-divisible-by 1
    --kv-channels 128
    --qk-layernorm
    --no-persist-layer-norm
