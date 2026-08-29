@@ -48,6 +48,10 @@ case "${LOYAL_BASE_MODEL:-qwen3-4b}" in
     export LOYAL_MODEL_HF_CHECKPOINT="${LOYAL_MODEL_HF_CHECKPOINT:-${MODEL_ROOT}/Llama-3.1-8B-Instruct}"
     export LOYAL_MODEL_REF_LOAD="${LOYAL_MODEL_REF_LOAD:-${MODEL_ROOT}/Llama-3.1-8B-Instruct_torch_dist}"
     ;;
+  olmo3-7b-instruct)
+    export LOYAL_MODEL_HF_CHECKPOINT="${LOYAL_MODEL_HF_CHECKPOINT:-${LOYAL_MODEL_ROOT}/Olmo-3-7B-Instruct}"
+    export LOYAL_MODEL_REF_LOAD="${LOYAL_MODEL_REF_LOAD:-${LOYAL_MODEL_ROOT}/Olmo-3-7B-Instruct_torch_dist}"
+    ;;
   *)
     echo "unsupported LOYAL_BASE_MODEL=${LOYAL_BASE_MODEL}" >&2
     exit 2

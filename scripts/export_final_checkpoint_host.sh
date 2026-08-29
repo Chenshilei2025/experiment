@@ -49,6 +49,9 @@ case "${LOYAL_BASE_MODEL}" in
   llama3.1-8b-instruct)
     export LOYAL_MODEL_HF_CHECKPOINT="${LOYAL_MODEL_HF_CHECKPOINT:-${LOYAL_LLAMA3_1_8B_MODEL_ROOT:-/ssd/models}/Llama-3.1-8B-Instruct}"
     ;;
+  olmo3-7b-instruct)
+    export LOYAL_MODEL_HF_CHECKPOINT="${LOYAL_MODEL_HF_CHECKPOINT:-${LOYAL_MODEL_ROOT}/Olmo-3-7B-Instruct}"
+    ;;
   *)
     echo "unsupported LOYAL_BASE_MODEL=${LOYAL_BASE_MODEL}" >&2
     exit 2

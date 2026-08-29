@@ -77,6 +77,21 @@ def qwen3_config_mapper(hf_config: PretrainedConfig) -> MegatronModelConfig:
     return mapped_config
 
 
+@register_mapper("olmo3")
+def olmo3_config_mapper(hf_config: PretrainedConfig) -> MegatronModelConfig:
+    mapped_config = _map_common_configs(hf_config)
+    mapped_config.transformer_config.update(
+        {
+            "add_bias_linear": False,
+            "add_qkv_bias": False,
+            "qk_layernorm": True,
+            "post_mlp_layernorm": True,
+            "post_self_attn_layernorm": True,
+        }
+    )
+    return mapped_config
+
+
 @register_mapper("qwen3_moe")
 def qwen3_moe_config_mapper(hf_config: PretrainedConfig) -> MegatronModelConfig:
     mapped_config = _map_common_configs(hf_config)

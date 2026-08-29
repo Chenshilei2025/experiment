@@ -34,7 +34,7 @@ if [[ "${MODEL_KIND}" == "baseline" ]]; then
   fi
   : "${LOYAL_MODEL_ROOT:?set LOYAL_MODEL_ROOT in .env to the directory containing model profiles and torch_dist checkpoints}"
   case "${LOYAL_BASE_MODEL}" in
-    qwen3-4b|glm-z1-9b) MODEL_MOUNT_ROOT="${LOYAL_MODEL_ROOT}" ;;
+    qwen3-4b|glm-z1-9b|olmo3-7b-instruct) MODEL_MOUNT_ROOT="${LOYAL_MODEL_ROOT}" ;;
     llama3.1-8b-instruct) MODEL_MOUNT_ROOT="${LOYAL_LLAMA3_1_8B_MODEL_ROOT}" ;;
     *) echo "unsupported LOYAL_BASE_MODEL=${LOYAL_BASE_MODEL}" >&2; exit 2 ;;
   esac

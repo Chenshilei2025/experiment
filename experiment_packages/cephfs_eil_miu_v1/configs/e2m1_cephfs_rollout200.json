@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "experiment": "cephfs_eil_miu_v1",
+  "context": {
+    "condition": "olmo3-e2m1-rollout200"
+  },
+  "checkpoint_template": "cephfs-e2m1-{condition}-{run_name}-seed{seed}",
+  "base_model": "olmo3-7b-instruct",
+  "target_model": "allenai/Olmo-3-7B-Instruct",
+  "target_model_local_dir": "/cephfs/shared/experiment_g/assets/models/Olmo-3-7B-Instruct",
+  "upstream_model_profile_status": "local: requires the bundled OLMo3 model profile and bridge patches",
+  "seed": 1234,
+  "mixed_ablation": {
+    "phase": "reward_coefficient",
+    "ratio": "E2M1",
+    "fixed_parameters": {
+      "miu_eta": 0.5,
+      "global_batch": 512,
+      "rollout_batch": 64,
+      "samples_per_prompt": 8,
+      "learning_rate": "2e-6",
+      "kl_loss_coef": 0.05,
+      "entropy_coef": 0.002,
+      "max_tokens_per_gpu": 4096
+    },
+    "depends_on": "OLMo3 mixed reward baseline after upstream model-profile support lands"
+  },
+  "environment": {
+    "LOYAL_MODEL_HF_CHECKPOINT": "/cephfs/shared/experiment_g/assets/models/Olmo-3-7B-Instruct",
+    "LOYAL_MODEL_REF_LOAD": "/cephfs/shared/experiment_g/assets/models/Olmo-3-7B-Instruct_torch_dist",
+    "LOYAL_MODEL_CHAT_TEMPLATE_KWARGS": "{\"add_generation_prompt\":true}",
+    "LOYAL_MIXED_EIL_BATCH_FRACTION": "0.6666666666666666",
+    "LOYAL_EIL_LEAKAGE_LAMBDA": "0.5",
+    "LOYAL_MIU_FAITHFULNESS_ETA": "0.5",
+    "LOYAL_MIXED_GLOBAL_BATCH_SIZE": "512",
+    "LOYAL_MIXED_ROLLOUT_BATCH_SIZE": "64",
+    "LOYAL_MIXED_SAMPLES_PER_PROMPT": "8",
+    "LOYAL_MIXED_MAX_RESPONSE_LEN": "1024",
+    "LOYAL_MIXED_MAX_TOKENS_PER_GPU": "4096",
+    "LOYAL_MIXED_LEARNING_RATE": "2e-6",
+    "LOYAL_MIXED_KL_LOSS_COEF": "0.05",
+    "LOYAL_MIXED_ENTROPY_COEF": "0.002",
+    "LOYAL_MIXED_OPTIMIZER_CPU_OFFLOAD": "0",
+    "LOYAL_MIXED_TRAIN_GPU_COUNT": "2",
+    "LOYAL_MIXED_ROLLOUT_GPU_COUNT": "2",
+    "LOYAL_MIXED_RAY_NUM_GPUS": "4",
+    "LOYAL_MIXED_SGLANG_MEM_FRACTION_STATIC": "0.78",
+    "LOYAL_MIXED_SGLANG_SERVER_CONCURRENCY": "64",
+    "LOYAL_EIL_GROUP_RM_MAX_CONCURRENT": "4",
+    "LOYAL_EIL_RM_MAX_CONCURRENT": "32",
+    "LOYAL_EIL_GROUP_RM_MAX_ATTEMPTS": "3",
+    "LOYAL_EIL_GROUP_RM_RETRY_INITIAL_BACKOFF_SECONDS": "2",
+    "LOYAL_RETAIN_ZERO_STD_GROUPS": "1",
+    "LOYAL_MIXED_ENABLE_EVAL": "0",
+    "LOYAL_MIXED_SAVE_INTERVAL": "20",
+    "LOYAL_MIXED_SCHEDULE_TOTAL_ROLLOUTS": "200",
+    "LOYAL_REFUSE_CEPH_ACTIVE_PATHS": "0"
+  },
+  "evaluation": {
+    "baseline": false,
+    "after_each_stage": false,
+    "mechanisms": ["eil", "miu"],
+    "checkpoint_iterations": [19, 39, 59, 79, 99, 119, 139, 159, 179, 199]
+  },
+  "stages": [
+    {"mechanism": "mixed", "rollouts": 20},
+    {"mechanism": "mixed", "rollouts": 20},
+    {"mechanism": "mixed", "rollouts": 20},
+    {"mechanism": "mixed", "rollouts": 20},
+    {"mechanism": "mixed", "rollouts": 20},
+    {"mechanism": "mixed", "rollouts": 20},
+    {"mechanism": "mixed", "rollouts": 20},
+    {"mechanism": "mixed", "rollouts": 20},
+    {"mechanism": "mixed", "rollouts": 20},
+    {"mechanism": "mixed", "rollouts": 20}
+  ]
+}

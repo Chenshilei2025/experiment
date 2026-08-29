@@ -35,8 +35,15 @@ case "${MODEL_KEY}" in
     LOYAL_MODEL_CHAT_TEMPLATE_KWARGS='{}'
     source "${SLIME_ROOT}/scripts/models/llama3.1-8B-Instruct.sh"
     ;;
+  olmo3-7b-instruct)
+    LOYAL_MODEL_HF_CHECKPOINT="${LOYAL_MODEL_HF_CHECKPOINT:-/models/Olmo-3-7B-Instruct}"
+    LOYAL_MODEL_REF_LOAD="${LOYAL_MODEL_REF_LOAD:-/models/Olmo-3-7B-Instruct_torch_dist}"
+    LOYAL_MODEL_VOCAB_SIZE=100278
+    LOYAL_MODEL_CHAT_TEMPLATE_KWARGS='{"add_generation_prompt":true}'
+    source "${SLIME_ROOT}/scripts/models/olmo3-7B-Instruct.sh"
+    ;;
   *)
-    echo "unsupported LOYAL_BASE_MODEL=${MODEL_KEY}; choose qwen3-4b, glm-z1-9b, or llama3.1-8b-instruct" >&2
+    echo "unsupported LOYAL_BASE_MODEL=${MODEL_KEY}; choose qwen3-4b, glm-z1-9b, llama3.1-8b-instruct, or olmo3-7b-instruct" >&2
     return 2
     ;;
 esac

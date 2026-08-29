@@ -37,6 +37,7 @@ if [[ "${MODEL_KIND}" == "baseline" ]]; then
     qwen3-4b) MODEL_PATH="${LOYAL_MODEL_HF_CHECKPOINT:-${LOYAL_MODEL_ROOT}/Qwen3-4B}" ;;
     glm-z1-9b) MODEL_PATH="${LOYAL_MODEL_HF_CHECKPOINT:-${LOYAL_MODEL_ROOT}/GLM-Z1-9B-0414}" ;;
     llama3.1-8b-instruct) MODEL_PATH="${LOYAL_MODEL_HF_CHECKPOINT:-${LOYAL_LLAMA3_1_8B_MODEL_ROOT:-/ssd/models}/Llama-3.1-8B-Instruct}" ;;
+    olmo3-7b-instruct) MODEL_PATH="${LOYAL_MODEL_HF_CHECKPOINT:-${LOYAL_MODEL_ROOT}/Olmo-3-7B-Instruct}" ;;
     *) echo "unsupported LOYAL_BASE_MODEL=${LOYAL_BASE_MODEL}" >&2; exit 2 ;;
   esac
 else

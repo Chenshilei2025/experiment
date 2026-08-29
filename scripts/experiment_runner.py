@@ -260,8 +260,8 @@ def _validate(config: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, s
     experiment = config.get("experiment")
     if not isinstance(experiment, str) or not _SIMPLE_NAME.fullmatch(experiment):
         raise ValueError("experiment must be a simple identifier")
-    if config.get("base_model", "qwen3-4b") not in {"qwen3-4b", "glm-z1-9b", "llama3.1-8b-instruct"}:
-        raise ValueError("base_model must be one of qwen3-4b, glm-z1-9b, llama3.1-8b-instruct")
+    if config.get("base_model", "qwen3-4b") not in {"qwen3-4b", "glm-z1-9b", "llama3.1-8b-instruct", "olmo3-7b-instruct"}:
+        raise ValueError("base_model must be one of qwen3-4b, glm-z1-9b, llama3.1-8b-instruct, olmo3-7b-instruct")
     seed = config.get("seed")
     if not isinstance(seed, int) or isinstance(seed, bool) or seed < 0:
         raise ValueError("seed must be a non-negative integer")
