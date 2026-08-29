@@ -1,5 +1,4 @@
 MODEL_ARGS=(
-   --spec "slime_plugins.models.glm4" "get_glm_spec"
    --transformer-impl local
    --swiglu
    --num-layers 32
