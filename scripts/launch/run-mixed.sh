@@ -129,13 +129,9 @@ if [[ "${LOYAL_USE_WANDB:-1}" == 1 ]]; then
   fi
 fi
 MISC_ARGS=(--attention-dropout 0.0 --hidden-dropout 0.0 --no-gradient-accumulation-fusion --no-masked-softmax-fusion --accumulate-allreduce-grads-in-fp32 --attention-softmax-in-fp32 --attention-backend flash --no-rope-fusion)
-# Make scheduler replacement explicit on the command line when a checkpoint
-# resume intentionally changes LR.  The environment fallback in the backend
-# protects programmatic callers; this flag makes the training invocation
-# auditable and lets Megatron accept the new scheduler value while retaining
-# optimizer moments.
-if [[ "${LOYAL_OVERRIDE_OPT_PARAM_SCHEDULER:-0}" == "1" ]]; then
-  MISC_ARGS+=(--override-opt_param-scheduler)
+# Keep the scheduler state aligned with the loaded checkpoint when resuming.
+if [[ "${LOYAL_USE_CHECKPOINT_OPT_PARAM_SCHEDULER:-1}" == "1" ]]; then
+  MISC_ARGS+=(--use-checkpoint-opt_param-scheduler)
 fi
 # Force an explicit checkpoint iteration when resuming a batch-size-change
 # experiment.  This avoids relying on a stale/incorrect tracker read.
