@@ -43,6 +43,10 @@ if [[ ! -s "${RUN_DIR}/mixed_train.jsonl" ]]; then
   echo "missing mixed train data: ${RUN_DIR}/mixed_train.jsonl" >&2
   exit 7
 fi
+if [[ "${LOYAL_MIXED_NO_LOAD_OPTIM:-0}" == "1" || "${LOYAL_MIXED_NO_LOAD_RNG:-0}" == "1" ]]; then
+  echo "unsafe strict step479 resume: refusing no-load optimizer/RNG" >&2
+  exit 7
+fi
 
 exec env \
   PATH="/root/experiment_g_runtime/conda/env/bin:${PATH}" \
@@ -104,8 +108,8 @@ exec env \
   LOYAL_TRAINING_SEED="${LOYAL_TRAINING_SEED:-1234}" \
   LOYAL_ROLLOUT_SEED="${LOYAL_ROLLOUT_SEED:-1234}" \
   LOYAL_EXPERIMENT_RESUME="${LOYAL_EXPERIMENT_RESUME:-1}" \
-  LOYAL_USE_CHECKPOINT_OPT_PARAM_SCHEDULER="${LOYAL_USE_CHECKPOINT_OPT_PARAM_SCHEDULER:-0}" \
-  LOYAL_MIXED_NO_LOAD_OPTIM="${LOYAL_MIXED_NO_LOAD_OPTIM:-1}" \
-  LOYAL_MIXED_NO_LOAD_RNG="${LOYAL_MIXED_NO_LOAD_RNG:-1}" \
+  LOYAL_USE_CHECKPOINT_OPT_PARAM_SCHEDULER="${LOYAL_USE_CHECKPOINT_OPT_PARAM_SCHEDULER:-1}" \
+  LOYAL_MIXED_NO_LOAD_OPTIM="${LOYAL_MIXED_NO_LOAD_OPTIM:-0}" \
+  LOYAL_MIXED_NO_LOAD_RNG="${LOYAL_MIXED_NO_LOAD_RNG:-0}" \
   LOYAL_USE_WANDB="${LOYAL_USE_WANDB:-0}" \
   bash scripts/launch/run_training_host.sh mixed
