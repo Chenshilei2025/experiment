@@ -1,4 +1,5 @@
 MODEL_ARGS=(
+   --spec "slime_plugins.models.olmo3" "get_olmo3_spec"
    --transformer-impl local
    --swiglu
    --num-layers 32
@@ -11,7 +12,7 @@ MODEL_ARGS=(
    --use-rotary-position-embeddings
    --disable-bias-linear
    --normalization "RMSNorm"
-   --norm-epsilon 1e-5
+   --norm-epsilon 1e-6
    --rotary-base 500000
    --vocab-size 100278
    --make-vocab-size-divisible-by 1
@@ -23,5 +24,6 @@ MODEL_ARGS=(
    --use-rope-scaling
    --rotary-scaling-factor 8.0
    --no-rope-fusion
+   --no-gradient-accumulation-fusion
    --untie-embeddings-and-output-weights
 )
