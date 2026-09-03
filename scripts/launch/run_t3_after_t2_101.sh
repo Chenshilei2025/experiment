@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 root = Path(sys.argv[1])
-expected = {"miu": 385, "eil": 656, "gsm8k": 1319, "math500": 500, "aime2026_pass16": 30}
+expected = {"miu": 385, "eil": 656, "gsm8k": 1319, "math500": 500, "aime2026_sample16": 30}
 for name, count in expected.items():
     path = root / name / "summary.json"
     if not path.is_file():
