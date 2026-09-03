@@ -2,8 +2,8 @@
 # Run one loyal-agent SLIME task directly on a prepared host conda runtime.
 set -euo pipefail
 
-if [[ $# -ne 1 || ( "$1" != "miu" && "$1" != "eil" && "$1" != "mixed" && "$1" != "creative" ) ]]; then
-  echo "usage: $0 {miu|eil|mixed|creative}" >&2
+if [[ $# -ne 1 || ( "$1" != "miu" && "$1" != "eil" && "$1" != "mixed" && "$1" != "creative" && "$1" != "gsm8k_rl" ) ]]; then
+  echo "usage: $0 {miu|eil|mixed|creative|gsm8k_rl}" >&2
   exit 2
 fi
 
@@ -48,6 +48,10 @@ case "${LOYAL_BASE_MODEL:-qwen3-4b}" in
     export LOYAL_MODEL_HF_CHECKPOINT="${LOYAL_MODEL_HF_CHECKPOINT:-${MODEL_ROOT}/Llama-3.1-8B-Instruct}"
     export LOYAL_MODEL_REF_LOAD="${LOYAL_MODEL_REF_LOAD:-${MODEL_ROOT}/Llama-3.1-8B-Instruct_torch_dist}"
     ;;
+  olmo3-7b-instruct)
+    export LOYAL_MODEL_HF_CHECKPOINT="${LOYAL_MODEL_HF_CHECKPOINT:-${LOYAL_MODEL_ROOT}/Olmo-3-7B-Instruct}"
+    export LOYAL_MODEL_REF_LOAD="${LOYAL_MODEL_REF_LOAD:-${LOYAL_MODEL_ROOT}/Olmo-3-7B-Instruct_torch_dist}"
+    ;;
   *)
     echo "unsupported LOYAL_BASE_MODEL=${LOYAL_BASE_MODEL}" >&2
     exit 2
@@ -61,8 +65,10 @@ if [[ ! "${CHECKPOINT_NAME}" =~ ^[A-Za-z0-9._-]+$ ]]; then
 fi
 CHECKPOINT_DIR="${LOYAL_CHECKPOINT_HOST_DIR:-${PROJECT_ROOT}/artifacts/checkpoints/${CHECKPOINT_NAME}}"
 mkdir -p "${CHECKPOINT_DIR}"
-LOAD_VAR="LOYAL_${MECHANISM^^}_LOAD"
-SAVE_VAR="LOYAL_${MECHANISM^^}_SAVE"
+MECHANISM_ENV="${MECHANISM^^}"
+[[ "${MECHANISM}" == "gsm8k_rl" ]] && MECHANISM_ENV=GSM8K_RL
+LOAD_VAR="LOYAL_${MECHANISM_ENV}_LOAD"
+SAVE_VAR="LOYAL_${MECHANISM_ENV}_SAVE"
 export "${LOAD_VAR}=${!LOAD_VAR:-${CHECKPOINT_DIR}}"
 export "${SAVE_VAR}=${!SAVE_VAR:-${CHECKPOINT_DIR}}"
 
@@ -82,6 +88,9 @@ if [[ -z "${CUDA_VISIBLE_DEVICES:-}" ]]; then
       ;;
     creative)
       [[ -z "${LOYAL_CREATIVE_TRAIN_GPU_DEVICES:-}" ]] || export CUDA_VISIBLE_DEVICES="${LOYAL_CREATIVE_TRAIN_GPU_DEVICES}"
+      ;;
+    gsm8k_rl)
+      [[ -z "${LOYAL_GSM8K_RL_TRAIN_GPU_DEVICES:-}" ]] || export CUDA_VISIBLE_DEVICES="${LOYAL_GSM8K_RL_TRAIN_GPU_DEVICES}"
       ;;
   esac
 fi
