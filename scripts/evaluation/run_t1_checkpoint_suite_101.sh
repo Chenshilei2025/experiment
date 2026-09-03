@@ -15,11 +15,17 @@ STORY_CLOZE="${LOYAL_STORY_CLOZE_TEST_DATA:-/cephfs/shared/experiment_g/assets/d
 EIL_RECORDS="${LOYAL_EIL_TEST_RECORDS:-${PROJECT_ROOT}/eil/data/dataset/EIL/test.jsonl}"
 MIU_RECORDS="${LOYAL_MIU_TEST_RECORDS:-${PROJECT_ROOT}/miu/data/dataset/MIU/test.jsonl}"
 
-[[ -d "${CHECKPOINT}" ]] || { echo "missing checkpoint: ${CHECKPOINT}" >&2; exit 2; }
+# Load judge credentials/configuration for detached evaluation processes.
+# shellcheck disable=SC1091
+source "${PROJECT_ROOT}/scripts/launch/env.sh"
+
+[[ -d "${CHECKPOINT}" && -f "${CHECKPOINT}/config.json" ]] || { echo "missing or incomplete HF checkpoint: ${CHECKPOINT}" >&2; exit 2; }
 for path in "${GSM8K}" "${MATH500}" "${AIME}" "${STORY_CLOZE}" "${EIL_RECORDS}" "${MIU_RECORDS}"; do
   [[ -f "${path}" ]] || { echo "missing evaluation data: ${path}" >&2; exit 2; }
 done
-[[ ! -e "${OUTPUT_ROOT}" ]] || { echo "refusing to overwrite ${OUTPUT_ROOT}" >&2; exit 2; }
+if [[ -e "${OUTPUT_ROOT}" && ! -f "${OUTPUT_ROOT}/suite_done" ]]; then
+  rm -rf "${OUTPUT_ROOT}"
+fi
 mkdir -p "${OUTPUT_ROOT}"
 export PYTHONPATH="${PROJECT_ROOT}:${PROJECT_ROOT}/slime:${PYTHONPATH:-}"
 
@@ -47,7 +53,14 @@ import json
 import sys
 from pathlib import Path
 root = Path(sys.argv[1])
-expected = {"miu": 385, "eil": 656, "story_cloze": 1871}
+expected = {
+    "miu": 385,
+    "eil": 656,
+    "gsm8k": 1319,
+    "math500": 500,
+    "aime_pass16": 30,
+    "story_cloze": 1871,
+}
 for name, count in expected.items():
     summary = json.loads((root / name / "summary.json").read_text(encoding="utf-8"))
     actual = summary.get("n_total", summary.get("n_questions"))
@@ -57,3 +70,4 @@ print("checkpoint_suite_acceptance_ok")
 PY
 
 echo "checkpoint_suite_complete checkpoint=${CHECKPOINT} output=${OUTPUT_ROOT}"
+touch "${OUTPUT_ROOT}/suite_done"
