@@ -96,4 +96,6 @@ if [[ -z "${CUDA_VISIBLE_DEVICES:-}" ]]; then
 fi
 
 cd "${PROJECT_ROOT}"
-exec bash "${SCRIPT_DIR}/run-${MECHANISM}.sh"
+LAUNCH_SCRIPT="${SCRIPT_DIR}/run-${MECHANISM}.sh"
+[[ "${MECHANISM}" == "gsm8k_rl" ]] && LAUNCH_SCRIPT="${SCRIPT_DIR}/run_gsm8k_rl.sh"
+exec bash "${LAUNCH_SCRIPT}"
